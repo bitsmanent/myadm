@@ -54,6 +54,7 @@ struct View {
 
 /* function declarations */
 void die(const char *errstr, ...);
+void status(const char *fmtstr, ...);
 void databases(void);
 void tables(void);
 void records(void);
@@ -94,7 +95,7 @@ static Mode modes[] = {
 
 static Key keys[] = {
 	/* mode          modkey        function        argument */
-        { NULL,          L"Q",         quit,           {.i = 0} },
+        { NULL,          L"Q",         quit,           {.i = 1} },
         { NULL,          L"q",         viewprev,       {0} },
         { NULL,          L"D",         setmode,        {.v = &modes[0]} },
         { NULL,          L"T",         setmode,        {.v = &modes[1]} },
@@ -102,7 +103,7 @@ static Key keys[] = {
         { NULL,          L"E",         setmode,        {.v = &modes[3]} },
         { NULL,          L"k",         itempos,        {.i = -1} },
         { NULL,          L"j",         itempos,        {.i = +1} },
-        { "databases",   L"q",         quit,           {.i = 1} },
+        { "databases",   L"q",         quit,           {.i = 0} },
         { "databases",   L"ENTER",     usedb,          {.v = &modes[1]} },
         { "databases",   L"SPACE",     usedb,          {.v = &modes[1]} },
         { "tables",      L"ENTER",     usetable,       {0} },
@@ -124,8 +125,19 @@ static struct stfl_ipool *ipool;
 /* function implementations */
 void
 quit(const Arg *arg) {
+	char c;
+
 	if(arg->i) {
-		/* XXX ask for confirmation */
+		status("Do you want to quit ([y]/n)?");
+		stfl_run(selview->form, -1);
+		while((c = getchar())) {
+			if(c == 'n') {
+				status("");
+				return;
+			}
+			if(c == 'y' || c == '\r')
+				break;
+		}
 	}
 	running = 0;
 }
@@ -166,7 +178,6 @@ setmode(const Arg *arg) {
 
 	if(selview && !strcmp(arg->v, m->name))
 		return;
-
 	for(v = views; v; v = v->next)
 		if(!strcmp(v->mode->name, m->name))
 			break;
@@ -185,9 +196,10 @@ setmode(const Arg *arg) {
 	*/
 	selview->mode->func();
 
-	/* XXX Throwing a visual error instead of die... */
-	if(!selview->form)
-		die("%s: mode is broken.\n", m->name);
+	if(!selview->form) {
+		viewprev(NULL);
+		status("%s: cannot load the mode.", m->name);
+	}
 }
 
 void
@@ -227,18 +239,14 @@ mysql_items(MYSQL_RES *res, Item **items) {
 
 	nfds = mysql_num_fields(res);
 	nrows = mysql_num_rows(res);
-
 	*items = NULL;
 	while((row = mysql_fetch_row(res))) {
 		item = ecalloc(1, sizeof(Item));
 		item->name = ecalloc(256, sizeof(char));
-
 		for(i = 0; i < nfds; ++i)
 			snprintf(item->name, 22, "%s", row[i]);
-
 		attachitemto(item, &(*items));
 	}
-
 	return nrows;
 }
 
@@ -355,6 +363,17 @@ apply(const Arg *arg) {
 }
 
 void
+status(const char *fmtstr, ...) {
+	/*
+	va_start(ap, errstr);
+	vfprintf(stderr, errstr, ap);
+	va_end(ap);
+	*/
+
+	stfl_set(selview->form, L"stext", stfl_ipool_towc(ipool, fmtstr));
+}
+
+void
 die(const char *errstr, ...) {
 	va_list ap;
 
@@ -383,14 +402,15 @@ main(int argc, char **argv) {
 	mysql = mysql_init(NULL);
 	if(mysql_real_connect(mysql, DBHOST, DBUSER, DBPASS, NULL, 0, NULL, 0) == NULL)
 		die("Cannot connect to the database.\n");
-	
+
 	ipool = stfl_ipool_create(nl_langinfo(CODESET));
 	setmode(&a);
+	status("Welcome to core.c");
 
 	while(running) {
 		if(!(ev = stfl_run(selview->form, 0)))
 			continue;
-
+		status("");
 		k = NULL;
 		for(i = 0; i < LENGTH(keys); ++i)
 			if(!((keys[i].mode && strcmp(selview->mode->name, keys[i].mode))
