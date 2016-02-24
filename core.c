@@ -59,7 +59,7 @@ void tables(void);
 void records(void);
 void text(void);
 MYSQL_RES *mysql_exec(char *sql);
-Item *mysql_items(MYSQL_RES *res);
+int mysql_items(MYSQL_RES *res, Item **items);
 void attach(View *v);
 void detach(View *v);
 void attachitemto(Item *i, Item **ii);
@@ -201,7 +201,6 @@ cleanupitems(Item *i) {
 void
 cleanupview(View *v) {
 	detach(v);
-
 	cleanupitems(v->items);
 	if(v->form)
 		stfl_free(v->form);
@@ -220,15 +219,16 @@ mysql_exec(char *sql) {
 	return res;
 }
 
-Item *
-mysql_items(MYSQL_RES *res) {
+int
+mysql_items(MYSQL_RES *res, Item **items) {
 	MYSQL_ROW row;
-	Item *items, *item;
-	int i, nfds;
+	Item *item;
+	int i, nfds, nrows;
 
 	nfds = mysql_num_fields(res);
+	nrows = mysql_num_rows(res);
 
-	items = NULL;
+	*items = NULL;
 	while((row = mysql_fetch_row(res))) {
 		item = ecalloc(1, sizeof(Item));
 		item->name = ecalloc(256, sizeof(char));
@@ -236,10 +236,10 @@ mysql_items(MYSQL_RES *res) {
 		for(i = 0; i < nfds; ++i)
 			snprintf(item->name, 22, "%s", row[i]);
 
-		attachitemto(item, &items);
+		attachitemto(item, &(*items));
 	}
 
-	return items;
+	return nrows;
 }
 
 void
@@ -253,9 +253,7 @@ databases(void) {
 		die("databases");
 
 	cleanupitems(selview->items);
-
-	selview->nitems = mysql_num_rows(res);
-	selview->items = mysql_items(res);
+	selview->nitems = mysql_items(res, &selview->items);
 	mysql_free_result(res);
 
 	if(!selview->form)
@@ -280,9 +278,7 @@ tables(void) {
 		die("tables\n");
 
 	cleanupitems(selview->items);
-
-	selview->nitems = mysql_num_rows(res);
-	selview->items = mysql_items(res);
+	selview->nitems = mysql_items(res, &selview->items);
 	mysql_free_result(res);
 
 	if(!selview->form)
