@@ -2,6 +2,7 @@
 /* http://www.chiark.greenend.org.uk/~sgtatham/algorithms/listsort.html */
 /* What about don't allocate item->name in mysql_items() but just assign it to
  * row[i], then only free res instead of all items? */
+/* selitem dereferences a NULL pointer if the previous view gets destroyed */
 
 #include <stdio.h>
 #include <stdarg.h>
@@ -68,6 +69,7 @@ void detachitemfrom(Item *i, Item **ii);
 void *ecalloc(size_t nmemb, size_t size);
 void cleanupview(View *v);
 void cleanupitems(Item *i);
+Item *getitem(void);
 void flagas(const Arg *arg);
 void apply(const Arg *arg);
 void quit(const Arg *arg);
@@ -106,8 +108,8 @@ static Key keys[] = {
         { "databases",   L"q",         quit,           {.i = 0} },
         { "databases",   L"ENTER",     usedb,          {.v = &modes[1]} },
         { "databases",   L"SPACE",     usedb,          {.v = &modes[1]} },
-        { "tables",      L"ENTER",     usetable,       {0} },
-        { "tables",      L"SPACE",     usetable,       {0} },
+        { "tables",      L"ENTER",     usetable,       {.v = &modes[2]} },
+        { "tables",      L"SPACE",     usetable,       {.v = &modes[2]} },
         { "records",     L"ENTER",     userecord,      {0} },
         { "records",     L"d",         flagas,         {.v = "D"} },
         { "records",     L"t",         flagas,         {.v = "*"} },
@@ -118,9 +120,10 @@ static Key keys[] = {
 
 /* variables */
 static int running = 1;
-static MYSQL *mysql = NULL;
+static MYSQL *mysql;
 static View *views, *selview;
 static struct stfl_ipool *ipool;
+static Item *selitem;
 
 /* function implementations */
 void
@@ -302,29 +305,58 @@ tables(void) {
 
 void
 records(void) {
+	Item *item;
+	MYSQL_RES *res;
+	char txt[256];
+	int i;
+
+	snprintf(txt, sizeof txt, "select * from `%s`", selitem->name);
+
+	if(!(res = mysql_exec(txt)))
+		die("tables\n");
+
+	cleanupitems(selview->items);
+	selview->nitems = mysql_items(res, &selview->items);
+	mysql_free_result(res);
+
+	if(!selview->form)
+		selview->form = stfl_create(L"<records.stfl>");
+	i = 0;
+	stfl_modify(selview->form, L"records", L"replace_inner", L"vbox"); /* clear */
+	for(item = selview->items; item; item = item->next) {
+		snprintf(txt, sizeof txt, "listitem[%d] text:\"%s\"", i++, item->name);
+		stfl_modify(selview->form, L"records", L"append", stfl_ipool_towc(ipool, txt));
+	}
+	stfl_set(selview->form, L"pos", 0);
 }
 
 void
 text(void) {
 }
 
-void
-usedb(const Arg *arg) {
-	Item *item;
-	int i = 0;
-
+Item *
+getitem(void) {
 	int pos = atoi(stfl_ipool_fromwc(ipool, stfl_get(selview->form, L"pos")));
+	int i = 0;
+	Item *item = NULL;
 
 	for(item = selview->items; item; item = item->next)
 		if(i++ == pos)
 			break;
+	return item;
+}
 
+void
+usedb(const Arg *arg) {
+	Item *item = getitem();
 	mysql_select_db(mysql, item->name);
 	setmode(arg);
 }
 
 void
 usetable(const Arg *arg) {
+	selitem = getitem();
+	setmode(arg);
 }
 
 void
