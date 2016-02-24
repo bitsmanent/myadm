@@ -1,4 +1,7 @@
 /* cc -D_BSD_SOURCE -std=c99 -O0 -Wall -pedantic -o core core.c $(mysql_config --cflags) -lmysqlclient -lstfl -lncursesw */
+/* http://www.chiark.greenend.org.uk/~sgtatham/algorithms/listsort.html */
+/* What about don't allocate item->name in mysql_items() but just assign it to
+ * row[i], then only free res instead of all items? */
 
 #include <stdio.h>
 #include <stdarg.h>
@@ -36,12 +39,6 @@ typedef struct {
 } Key;
 
 typedef struct {
-	const char *mode;
-	const wchar_t *modkey;
-	const wchar_t *var;
-} Stflkey;
-
-typedef struct {
 	const char *name;
 	void (*func)(void);
 } Mode;
@@ -50,6 +47,7 @@ typedef struct View View;
 struct View {
 	Mode *mode;
 	Item *items;
+	int nitems;
 	struct stfl_form *form;
 	View *next;
 };
@@ -64,6 +62,8 @@ MYSQL_RES *mysql_exec(char *sql);
 Item *mysql_items(MYSQL_RES *res);
 void attach(View *v);
 void detach(View *v);
+void attachitemto(Item *i, Item **ii);
+void detachitemfrom(Item *i, Item **ii);
 void *ecalloc(size_t nmemb, size_t size);
 void cleanupview(View *v);
 void flagas(const Arg *arg);
@@ -74,6 +74,7 @@ void viewprev(const Arg *arg);
 void usedb(const Arg *arg);
 void usetable(const Arg *arg);
 void userecord(const Arg *arg);
+void itempos(const Arg *arg);
 
 /* config.h > */
 
@@ -98,19 +99,17 @@ static Key keys[] = {
         { NULL,          L"T",         setmode,        {.v = &modes[1]} },
         { NULL,          L"R",         setmode,        {.v = &modes[2]} },
         { NULL,          L"E",         setmode,        {.v = &modes[3]} },
+        { NULL,          L"k",         itempos,        {.i = -1} },
+        { NULL,          L"j",         itempos,        {.i = +1} },
         { "databases",   L"q",         quit,           {.i = 1} },
         { "databases",   L"ENTER",     usedb,          {.v = &modes[1]} },
+        { "databases",   L"SPACE",     usedb,          {.v = &modes[1]} },
         { "tables",      L"ENTER",     usetable,       {0} },
+        { "tables",      L"SPACE",     usetable,       {0} },
         { "records",     L"ENTER",     userecord,      {0} },
         { "records",     L"d",         flagas,         {.v = "D"} },
         { "records",     L"t",         flagas,         {.v = "*"} },
         { "records",     L"$",         apply,          {0} },
-};
-
-static Stflkey stflkeys[] = {
-	/* mode          modkey        stfl variable */
-	{ NULL,          L"k UP",      L"bind_up" },
-	{ NULL,          L"j DOWN",    L"bind_down" },
 };
 
 /* < config.h */
@@ -145,6 +144,20 @@ detach(View *v) {
 }
 
 void
+attachitemto(Item *i, Item **ii) {
+	i->next = *ii;
+	*ii = i;
+}
+
+void
+detachitemfrom(Item *i, Item **ii) {
+	Item **ti;
+
+	for (ti = &(*ii); *ti && *ti != i; ti = &(*ti)->next);
+	*ti = i->next;
+}
+
+void
 setmode(const Arg *arg) {
 	const Mode *m = arg->v;
 	View *v;
@@ -165,11 +178,6 @@ setmode(const Arg *arg) {
 
 		selview = v;
 		selview->mode->func();
-
-		/* bind stfl keys */
-		for(i = 0; i < LENGTH(stflkeys); ++i)
-			if(!(stflkeys[i].mode && strcmp(stflkeys[i].mode, selview->mode->name)))
-				stfl_set(selview->form, stflkeys[i].var, stflkeys[i].modkey);
 	}
 	else {
 		selview = v;
@@ -188,6 +196,8 @@ cleanupview(View *v) {
 	/* XXX
 	while(v->items)
 		cleanupitem(v->items);
+	OR
+	mysql_free_result(v->res) + free(item)?
 	*/
 
 	/* XXX cleanup items */
@@ -224,8 +234,7 @@ mysql_items(MYSQL_RES *res) {
 		for(i = 0; i < nfds; ++i)
 			snprintf(item->name, 22, "%s", row[i]);
 
-		item->next = items;
-		items = item;
+		attachitemto(item, &items);
 	}
 
 	return items;
@@ -244,8 +253,10 @@ databases(void) {
 	if(!(res = mysql_exec("show databases")))
 		die("databases");
 
-	/* XXX Previously allocated items are never freed, only the LAST
-	 * allocation gets freed by cleanupview(). */
+	while(selview->items)
+		detachitemfrom(selview->items, &selview->items);
+
+	selview->nitems = mysql_num_rows(res);
 	selview->items = mysql_items(res);
 	mysql_free_result(res);
 
@@ -255,6 +266,7 @@ databases(void) {
 		snprintf(txt, sizeof txt, "listitem[%d] text:\"%s\"", i++, item->name);
 		stfl_modify(selview->form, L"databases", L"append", stfl_ipool_towc(ipool, txt));
 	}
+	stfl_set(selview->form, L"pos", 0);
 }
 
 void
@@ -267,12 +279,10 @@ tables(void) {
 	if(!(res = mysql_exec("show tables")))
 		die("tables\n");
 
-	/*
-	XXX
-	if(selview->items)
-		free items
-	*/
+	while(selview->items)
+		detachitemfrom(selview->items, &selview->items);
 
+	selview->nitems = mysql_num_rows(res);
 	selview->items = mysql_items(res);
 	mysql_free_result(res);
 
@@ -284,6 +294,7 @@ tables(void) {
 		snprintf(txt, sizeof txt, "listitem[%d] text:\"%s\"", i++, item->name);
 		stfl_modify(selview->form, L"tables", L"append", stfl_ipool_towc(ipool, txt));
 	}
+	stfl_set(selview->form, L"pos", 0);
 }
 
 void
@@ -315,6 +326,21 @@ usetable(const Arg *arg) {
 
 void
 userecord(const Arg *arg) {
+}
+
+void
+itempos(const Arg *arg) {
+	int pos = atoi(stfl_ipool_fromwc(ipool, stfl_get(selview->form, L"pos")));
+	char tmp[8];
+
+	pos += arg->i;
+	if(pos < 0)
+		pos = 0;
+	else if(pos >= selview->nitems)
+		pos = selview->nitems - 1;
+
+	snprintf(tmp, sizeof tmp, "%d", pos);
+	stfl_set(selview->form, L"pos", stfl_ipool_towc(ipool, tmp));
 }
 
 void
