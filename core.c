@@ -66,6 +66,7 @@ void attachitemto(Item *i, Item **ii);
 void detachitemfrom(Item *i, Item **ii);
 void *ecalloc(size_t nmemb, size_t size);
 void cleanupview(View *v);
+void cleanupitems(Item *i);
 void flagas(const Arg *arg);
 void apply(const Arg *arg);
 void quit(const Arg *arg);
@@ -175,14 +176,14 @@ setmode(const Arg *arg) {
 			if(!strcmp(modes[i].name, m->name))
 				v->mode = &modes[i];
 		attach(v);
+	}
 
-		selview = v;
-		selview->mode->func();
-	}
-	else {
-		selview = v;
-		selview->mode->func();
-	}
+	selview = v;
+	/*
+	if(selview->form)
+		return;
+	*/
+	selview->mode->func();
 
 	/* XXX Throwing a visual error instead of die... */
 	if(!selview->form)
@@ -190,17 +191,18 @@ setmode(const Arg *arg) {
 }
 
 void
+cleanupitems(Item *i) {
+	while(i) {
+		detachitemfrom(i, &i);
+		free(i);
+	}
+}
+
+void
 cleanupview(View *v) {
 	detach(v);
 
-	/* XXX
-	while(v->items)
-		cleanupitem(v->items);
-	OR
-	mysql_free_result(v->res) + free(item)?
-	*/
-
-	/* XXX cleanup items */
+	cleanupitems(v->items);
 	if(v->form)
 		stfl_free(v->form);
 	free(v);
@@ -247,21 +249,19 @@ databases(void) {
 	char txt[256];
 	int i;
 
-	if(selview->form)
-		return;
-
 	if(!(res = mysql_exec("show databases")))
 		die("databases");
 
-	while(selview->items)
-		detachitemfrom(selview->items, &selview->items);
+	cleanupitems(selview->items);
 
 	selview->nitems = mysql_num_rows(res);
 	selview->items = mysql_items(res);
 	mysql_free_result(res);
 
-	selview->form = stfl_create(L"<databases.stfl>");
+	if(!selview->form)
+		selview->form = stfl_create(L"<databases.stfl>");
 	i = 0;
+	stfl_modify(selview->form, L"databases", L"replace_inner", L"vbox"); /* clear */
 	for(item = selview->items; item; item = item->next) {
 		snprintf(txt, sizeof txt, "listitem[%d] text:\"%s\"", i++, item->name);
 		stfl_modify(selview->form, L"databases", L"append", stfl_ipool_towc(ipool, txt));
@@ -279,8 +279,7 @@ tables(void) {
 	if(!(res = mysql_exec("show tables")))
 		die("tables\n");
 
-	while(selview->items)
-		detachitemfrom(selview->items, &selview->items);
+	cleanupitems(selview->items);
 
 	selview->nitems = mysql_num_rows(res);
 	selview->items = mysql_items(res);
