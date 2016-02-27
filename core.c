@@ -1,6 +1,6 @@
 /* cc -D_BSD_SOURCE -std=c99 -O0 -Wall -pedantic -o core core.c $(mysql_config --cflags) -lmysqlclient -lstfl -lncursesw */
 /* http://www.chiark.greenend.org.uk/~sgtatham/algorithms/listsort.html */
-/* What about don't allocate item->name in mysql_items() but just assign it to
+/* What about don't allocate item->fields in mysql_items() but just assign it to
  * row[i], then only free res instead of all items? */
 /* selitem dereferences a NULL pointer if the previous view gets destroyed */
 
@@ -26,8 +26,8 @@ typedef union {
 
 typedef struct Item Item;
 struct Item {
-	char *name;
-	int len;
+	char **fields;
+	int nfields;
 	unsigned int flags;
 	Item *next;
 };
@@ -186,6 +186,9 @@ setmode(const Arg *arg) {
 			break;
 	if(!v) {
 		v = ecalloc(1, sizeof(View));
+		v->items = NULL;
+		v->form = NULL;
+		v->nitems = 0;
 		for(i = 0; i < LENGTH(modes); ++i)
 			if(!strcmp(modes[i].name, m->name))
 				v->mode = &modes[i];
@@ -207,8 +210,11 @@ setmode(const Arg *arg) {
 
 void
 cleanupitems(Item *i) {
-	while(i) {
+	while(i && i->next) {
 		detachitemfrom(i, &i);
+		while(--i->nfields >= 0)
+			free(i->fields[i->nfields]);
+		free(i->fields);
 		free(i);
 	}
 }
@@ -242,12 +248,17 @@ mysql_items(MYSQL_RES *res, Item **items) {
 
 	nfds = mysql_num_fields(res);
 	nrows = mysql_num_rows(res);
+
 	*items = NULL;
 	while((row = mysql_fetch_row(res))) {
 		item = ecalloc(1, sizeof(Item));
-		item->name = ecalloc(256, sizeof(char));
-		for(i = 0; i < nfds; ++i)
-			snprintf(item->name, 22, "%s", row[i]);
+		item->nfields = nfds; /* XXX this should go into the view */
+		item->fields = ecalloc(nfds, sizeof(char *));
+		for(i = 0; i < nfds; ++i) {
+			item->fields[i] = ecalloc(32, sizeof(char));
+			snprintf(item->fields[i], 32, "%s", row[i]);
+		}
+
 		attachitemto(item, &(*items));
 	}
 	return nrows;
@@ -258,7 +269,6 @@ databases(void) {
 	MYSQL_RES *res;
 	Item *item;
 	char txt[256];
-	int i;
 
 	if(!(res = mysql_exec("show databases")))
 		die("databases");
@@ -269,10 +279,10 @@ databases(void) {
 
 	if(!selview->form)
 		selview->form = stfl_create(L"<databases.stfl>");
-	i = 0;
+
 	stfl_modify(selview->form, L"databases", L"replace_inner", L"vbox"); /* clear */
 	for(item = selview->items; item; item = item->next) {
-		snprintf(txt, sizeof txt, "listitem[%d] text:\"%s\"", i++, item->name);
+		snprintf(txt, sizeof txt, "listitem text:\"%s\"", item->fields[0]);
 		stfl_modify(selview->form, L"databases", L"append", stfl_ipool_towc(ipool, txt));
 	}
 	stfl_set(selview->form, L"pos", 0);
@@ -283,7 +293,6 @@ tables(void) {
 	MYSQL_RES *res;
 	Item *item;
 	char txt[256];
-	int i;
 
 	if(!(res = mysql_exec("show tables")))
 		die("tables\n");
@@ -294,10 +303,10 @@ tables(void) {
 
 	if(!selview->form)
 		selview->form = stfl_create(L"<tables.stfl>");
-	i = 0;
+
 	stfl_modify(selview->form, L"tables", L"replace_inner", L"vbox"); /* clear */
 	for(item = selview->items; item; item = item->next) {
-		snprintf(txt, sizeof txt, "listitem[%d] text:\"%s\"", i++, item->name);
+		snprintf(txt, sizeof txt, "listitem text:\"%s\"", item->fields[0]);
 		stfl_modify(selview->form, L"tables", L"append", stfl_ipool_towc(ipool, txt));
 	}
 	stfl_set(selview->form, L"pos", 0);
@@ -307,11 +316,10 @@ void
 records(void) {
 	Item *item;
 	MYSQL_RES *res;
-	char txt[256];
+	char txt[256], t[32];
 	int i;
 
-	snprintf(txt, sizeof txt, "select * from `%s`", selitem->name);
-
+	snprintf(txt, sizeof txt, "select * from `%s`", selitem->fields[0]);
 	if(!(res = mysql_exec(txt)))
 		die("tables\n");
 
@@ -321,10 +329,10 @@ records(void) {
 
 	if(!selview->form)
 		selview->form = stfl_create(L"<records.stfl>");
-	i = 0;
+
 	stfl_modify(selview->form, L"records", L"replace_inner", L"vbox"); /* clear */
 	for(item = selview->items; item; item = item->next) {
-		snprintf(txt, sizeof txt, "listitem[%d] text:\"%s\"", i++, item->name);
+		snprintf(txt, sizeof txt, "listitem text:\"%s\"", item->fields[0]);
 		stfl_modify(selview->form, L"records", L"append", stfl_ipool_towc(ipool, txt));
 	}
 	stfl_set(selview->form, L"pos", 0);
@@ -349,7 +357,7 @@ getitem(void) {
 void
 usedb(const Arg *arg) {
 	Item *item = getitem();
-	mysql_select_db(mysql, item->name);
+	mysql_select_db(mysql, item->fields[0]);
 	setmode(arg);
 }
 
