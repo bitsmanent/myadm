@@ -316,8 +316,7 @@ void
 records(void) {
 	Item *item;
 	MYSQL_RES *res;
-	char txt[256], t[32];
-	int i;
+	char txt[256];
 
 	snprintf(txt, sizeof txt, "select * from `%s`", selitem->fields[0]);
 	if(!(res = mysql_exec(txt)))
