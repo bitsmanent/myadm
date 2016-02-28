@@ -334,9 +334,10 @@ records(void) {
 	for(item = selview->items; item; item = item->next) {
 		strncpy(txt, "listitem text:\"", sizeof txt);
 		for(int i = 0; i < item->nfields; ++i) {
-			snprintf(t, sizeof t, "%18.16s", item->fields[i]);
+			snprintf(t, sizeof t, "%8.16s", item->fields[i]);
 			if(i)
 				strncat(txt, " | ", sizeof txt);
+			/* XXX What if strlen(all_fields) > sizeof txt? */
 			strncat(txt, t, sizeof txt);
 		}
 		strncat(txt, "\"", sizeof txt);
