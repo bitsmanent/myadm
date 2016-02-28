@@ -331,7 +331,14 @@ records(void) {
 
 	stfl_modify(selview->form, L"records", L"replace_inner", L"vbox"); /* clear */
 	for(item = selview->items; item; item = item->next) {
-		snprintf(txt, sizeof txt, "listitem text:\"%s\"", item->fields[0]);
+		strncpy(txt, "listitem text:\"", sizeof txt);
+		for(int i = 0; i < item->nfields; ++i) {
+			if(i)
+				strncat(txt, " | ", sizeof txt);
+			strncat(txt, item->fields[i], sizeof txt);
+		}
+		strncat(txt, "\"", sizeof txt);
+		//snprintf(txt, sizeof txt, "listitem text:\"%s\"", item->fields[0]);
 		stfl_modify(selview->form, L"records", L"append", stfl_ipool_towc(ipool, txt));
 	}
 	stfl_set(selview->form, L"pos", 0);
