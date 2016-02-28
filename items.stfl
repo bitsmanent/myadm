@@ -1,6 +1,6 @@
 vbox[main]
   .expand:w
-  list[tables]
+  list[items]
     @style_normal:fg=white,bg=black
     @style_focus:fg=blue,bg=black
     pos[pos]:0

@@ -278,12 +278,12 @@ databases(void) {
 	mysql_free_result(res);
 
 	if(!selview->form)
-		selview->form = stfl_create(L"<databases.stfl>");
+		selview->form = stfl_create(L"<items.stfl>");
 
-	stfl_modify(selview->form, L"databases", L"replace_inner", L"vbox"); /* clear */
+	stfl_modify(selview->form, L"items", L"replace_inner", L"vbox"); /* clear */
 	for(item = selview->items; item; item = item->next) {
 		snprintf(txt, sizeof txt, "listitem text:\"%s\"", item->fields[0]);
-		stfl_modify(selview->form, L"databases", L"append", stfl_ipool_towc(ipool, txt));
+		stfl_modify(selview->form, L"items", L"append", stfl_ipool_towc(ipool, txt));
 	}
 	stfl_set(selview->form, L"pos", 0);
 }
@@ -302,12 +302,12 @@ tables(void) {
 	mysql_free_result(res);
 
 	if(!selview->form)
-		selview->form = stfl_create(L"<tables.stfl>");
+		selview->form = stfl_create(L"<items.stfl>");
 
-	stfl_modify(selview->form, L"tables", L"replace_inner", L"vbox"); /* clear */
+	stfl_modify(selview->form, L"items", L"replace_inner", L"vbox"); /* clear */
 	for(item = selview->items; item; item = item->next) {
 		snprintf(txt, sizeof txt, "listitem text:\"%s\"", item->fields[0]);
-		stfl_modify(selview->form, L"tables", L"append", stfl_ipool_towc(ipool, txt));
+		stfl_modify(selview->form, L"items", L"append", stfl_ipool_towc(ipool, txt));
 	}
 	stfl_set(selview->form, L"pos", 0);
 }
@@ -316,7 +316,8 @@ void
 records(void) {
 	Item *item;
 	MYSQL_RES *res;
-	char txt[256];
+	char txt[512];
+	char t[32];
 
 	snprintf(txt, sizeof txt, "select * from `%s`", selitem->fields[0]);
 	if(!(res = mysql_exec(txt)))
@@ -327,19 +328,19 @@ records(void) {
 	mysql_free_result(res);
 
 	if(!selview->form)
-		selview->form = stfl_create(L"<records.stfl>");
+		selview->form = stfl_create(L"<items.stfl>");
 
-	stfl_modify(selview->form, L"records", L"replace_inner", L"vbox"); /* clear */
+	stfl_modify(selview->form, L"items", L"replace_inner", L"vbox"); /* clear */
 	for(item = selview->items; item; item = item->next) {
 		strncpy(txt, "listitem text:\"", sizeof txt);
 		for(int i = 0; i < item->nfields; ++i) {
+			snprintf(t, sizeof t, "%18.16s", item->fields[i]);
 			if(i)
 				strncat(txt, " | ", sizeof txt);
-			strncat(txt, item->fields[i], sizeof txt);
+			strncat(txt, t, sizeof txt);
 		}
 		strncat(txt, "\"", sizeof txt);
-		//snprintf(txt, sizeof txt, "listitem text:\"%s\"", item->fields[0]);
-		stfl_modify(selview->form, L"records", L"append", stfl_ipool_towc(ipool, txt));
+		stfl_modify(selview->form, L"items", L"append", stfl_ipool_towc(ipool, txt));
 	}
 	stfl_set(selview->form, L"pos", 0);
 }
