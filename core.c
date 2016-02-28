@@ -186,9 +186,6 @@ setmode(const Arg *arg) {
 			break;
 	if(!v) {
 		v = ecalloc(1, sizeof(View));
-		v->items = NULL;
-		v->form = NULL;
-		v->nitems = 0;
 		for(i = 0; i < LENGTH(modes); ++i)
 			if(!strcmp(modes[i].name, m->name))
 				v->mode = &modes[i];
