@@ -1,8 +1,4 @@
-/* cc -D_BSD_SOURCE -std=c99 -O0 -Wall -pedantic -o core core.c $(mysql_config --cflags) -lmysqlclient -lstfl -lncursesw */
 /* http://www.chiark.greenend.org.uk/~sgtatham/algorithms/listsort.html */
-/* What about don't allocate item->fields in mysql_items() but just assign it to
- * row[i], then only free res instead of all items? */
-/* selitem dereferences a NULL pointer if the previous view gets destroyed */
 
 #include <stdio.h>
 #include <stdarg.h>
@@ -72,6 +68,7 @@ void cleanupview(View *v);
 void cleanupitems(Item *i);
 Item *getitem(void);
 void stfl_putitem(Item *item);
+char choose(const char *msg, char *opts);
 void flagas(const Arg *arg);
 void apply(const Arg *arg);
 void quit(const Arg *arg);
@@ -104,6 +101,7 @@ static Key keys[] = {
         { NULL,          L"k",         itempos,        {.i = -1} },
         { NULL,          L"j",         itempos,        {.i = +1} },
         { NULL,          L"I",         reload,         {0} },
+        { NULL,          L"$",         apply,          {.i = 1} },
         { "databases",   L"q",         quit,           {.i = 0} },
         { "databases",   L"ENTER",     usedb,          {.v = &modes[1]} },
         { "databases",   L"SPACE",     usedb,          {.v = &modes[1]} },
@@ -112,7 +110,6 @@ static Key keys[] = {
         { "records",     L"ENTER",     userecord,      {0} },
         { "records",     L"d",         flagas,         {.v = "D"} },
         { "records",     L"t",         flagas,         {.v = "*"} },
-        { "records",     L"$",         apply,          {0} },
 };
 
 /* < config.h */
@@ -125,26 +122,34 @@ static struct stfl_ipool *ipool;
 static Item *selitem;
 
 /* function implementations */
+char
+choose(const char *msg, char *opts) {
+	char *o, c;
+
+	status(msg);
+	stfl_run(selview->form, -1);
+	while((c = getchar())) {
+		if(c == '\r') {
+			o = &opts[0];
+			break;
+		}
+		for(o = opts; *o; ++o)
+			if(c == *o)
+				break;
+		if(*o)
+			break;
+	}
+
+	status("");
+	return *o;
+}
+
 void
 quit(const Arg *arg) {
-	char c;
-
 	if(arg->i) {
-		/*
-		char opts = {'y', 'n'};
-		if(choose("Do you want to quit ([y]/n)?", opts) == 'y')
+		char *opts = "yn";
+		if(choose("Do you want to quit ([y]/n)?", opts) != opts[0])
 			return;
-		*/
-		status("Do you want to quit ([y]/n)?");
-		stfl_run(selview->form, -1);
-		while((c = getchar())) {
-			if(c == 'n') {
-				status("");
-				return;
-			}
-			if(c == 'y' || c == '\r')
-				break;
-		}
 	}
 	running = 0;
 }
@@ -408,6 +413,15 @@ flagas(const Arg *arg) {
 
 void
 apply(const Arg *arg) {
+	if(arg->i) {
+		char *opts = "yn";
+		if(choose("Apply changes ([y]/n)?", opts) != opts[0])
+			return;
+	}
+
+	status("Applied!");
+
+	/* XXX */
 }
 
 void

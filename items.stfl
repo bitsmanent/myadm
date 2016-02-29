@@ -7,8 +7,10 @@ vbox[main]
     @style_normal:fg=white,bg=black
     @style_focus:fg=blue,bg=black
     pos[pos]:0
-  hbox
+  label
     @style_normal:fg=black,bg=white
     .expand:0
-    label
-      text[stext]:""
+    text[stext]:""
+  label
+    .expand:0
+    text[cmdline]:""
