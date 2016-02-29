@@ -85,10 +85,9 @@ void reload(const Arg *arg);
 
 /* config.h > */
 
-/* XXX command line arguments */
-#define DBHOST "localhost"
-#define DBUSER "root"
-#define DBPASS "m0r3s3cur3"
+static const char *dbhost = "localhost";
+static const char *dbuser = "root";
+static const char *dbpass = "m0r3s3cur3";
 
 static Mode modes[] = {
 	/* name         show function */
@@ -444,7 +443,7 @@ main(int argc, char **argv) {
 	unsigned int i;
 
 	mysql = mysql_init(NULL);
-	if(mysql_real_connect(mysql, DBHOST, DBUSER, DBPASS, NULL, 0, NULL, 0) == NULL)
+	if(mysql_real_connect(mysql, dbhost, dbuser, dbpass, NULL, 0, NULL, 0) == NULL)
 		die("Cannot connect to the database.\n");
 
 	ipool = stfl_ipool_create(nl_langinfo(CODESET));
