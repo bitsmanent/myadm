@@ -270,7 +270,7 @@ stfl_putitem(Item *item) {
 	else {
 		strncpy(txt, "listitem text:\"", sizeof txt);
 		for(int i = 0; i < item->nfields; ++i) {
-			snprintf(t, sizeof t, "%8.16s", item->fields[i]);
+			snprintf(t, sizeof t, "%-8.16s", item->fields[i]);
 			if(i)
 				strncat(txt, " | ", sizeof txt);
 			/* XXX What if strlen(all_fields) > sizeof txt? */
@@ -325,7 +325,7 @@ void
 records(void) {
 	Item *item;
 	MYSQL_RES *res;
-	char t[32]; /* XXX */
+	char t[64 + 16]; /* MySQL max table name length is 64. */
 
 	snprintf(t, sizeof t, "select * from `%s`", selitem->fields[0]);
 	if(!(res = mysql_exec(t)))
