@@ -158,7 +158,7 @@ void
 detach(View *v) {
 	View **tv;
 
-	for (tv = &views; *tv && *tv != v; tv = &(*tv)->next);
+	for(tv = &views; *tv && *tv != v; tv = &(*tv)->next);
 	*tv = v->next;
 }
 
@@ -173,7 +173,7 @@ void
 detachitemfrom(Item *i, Item **ii) {
 	Item **ti;
 
-	for (ti = &(*ii); *ti && *ti != i; ti = &(*ti)->next);
+	for(ti = &(*ii); *ti && *ti != i; ti = &(*ti)->next);
 	*ti = i->next;
 }
 
@@ -197,6 +197,20 @@ setmode(const Arg *arg) {
 	}
 	selview = v;
 	v->mode->func();
+
+	/*
+	// XXX sort first
+	char t[8096] = {0};
+	for(v = views; v; v = v->next) {
+		if(v != views)
+			strncat(t, " => ", sizeof t);
+		strncat(t, v->items->fields[0], sizeof t);
+	}
+	status("[%s]", t);
+	*/
+
+	status("[%s]", selview->mode->name);
+	//stfl_set(selview->form, L"pos", 0);
 }
 
 void
@@ -254,13 +268,13 @@ mysql_items(MYSQL_RES *res, Item **items) {
 	*items = NULL;
 	while((row = mysql_fetch_row(res))) {
 		item = ecalloc(1, sizeof(Item));
-		item->nfields = nfds; /* XXX this should go into the view */
+		item->nfields = nfds;
 		item->fields = ecalloc(nfds, sizeof(char *));
 		for(i = 0; i < nfds; ++i) {
-			item->fields[i] = ecalloc(32, sizeof(char));
-			snprintf(item->fields[i], 32, "%s", row[i]);
+			/* MySQL max column name length is 64 */ 
+			item->fields[i] = ecalloc(64, sizeof(char));
+			snprintf(item->fields[i], 64, "%s", row[i]);
 		}
-
 		attachitemto(item, &(*items));
 	}
 	return nrows;
@@ -304,7 +318,6 @@ databases(void) {
 	stfl_modify(selview->form, L"items", L"replace_inner", L"vbox"); /* clear */
 	for(item = selview->items; item; item = item->next)
 		stfl_putitem(item);
-	stfl_set(selview->form, L"pos", 0);
 }
 
 void
@@ -324,7 +337,6 @@ tables(void) {
 	stfl_modify(selview->form, L"items", L"replace_inner", L"vbox"); /* clear */
 	for(item = selview->items; item; item = item->next)
 		stfl_putitem(item);
-	stfl_set(selview->form, L"pos", 0);
 }
 
 void
@@ -344,7 +356,6 @@ records(void) {
 	stfl_modify(selview->form, L"items", L"replace_inner", L"vbox"); /* clear */
 	for(item = selview->items; item; item = item->next)
 		stfl_putitem(item);
-	stfl_set(selview->form, L"pos", 0);
 }
 
 void
@@ -459,7 +470,6 @@ main(int argc, char **argv) {
 	while(running) {
 		if(!(ev = stfl_run(selview->form, 0)))
 			continue;
-		status("");
 		k = NULL;
 		for(i = 0; i < LENGTH(keys); ++i)
 			if(!((keys[i].mode && strcmp(selview->mode->name, keys[i].mode))
