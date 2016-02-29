@@ -79,6 +79,7 @@ void usedb(const Arg *arg);
 void usetable(const Arg *arg);
 void userecord(const Arg *arg);
 void itempos(const Arg *arg);
+void reload(const Arg *arg);
 
 /* config.h > */
 
@@ -105,6 +106,7 @@ static Key keys[] = {
         { NULL,          L"E",         setmode,        {.v = &modes[3]} },
         { NULL,          L"k",         itempos,        {.i = -1} },
         { NULL,          L"j",         itempos,        {.i = +1} },
+        { NULL,          L"I",         reload,         {0} },
         { "databases",   L"q",         quit,           {.i = 0} },
         { "databases",   L"ENTER",     usedb,          {.v = &modes[1]} },
         { "databases",   L"SPACE",     usedb,          {.v = &modes[1]} },
@@ -192,9 +194,13 @@ setmode(const Arg *arg) {
 				v->mode = &modes[i];
 		attach(v);
 	}
-
 	selview = v;
 	v->mode->func();
+}
+
+void
+reload(const Arg *arg) {
+	selview->mode->func();
 }
 
 void
@@ -310,7 +316,7 @@ records(void) {
 
 	snprintf(txt, sizeof txt, "select * from `%s`", selitem->fields[0]);
 	if(!(res = mysql_exec(txt)))
-		die("tables\n");
+		die("records\n");
 
 	cleanupitems(selview->items);
 	selview->nitems = mysql_items(res, &selview->items);
