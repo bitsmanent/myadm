@@ -60,7 +60,7 @@ void databases(void);
 void tables(void);
 void records(void);
 void text(void);
-MYSQL_RES *mysql_exec(char *sql);
+MYSQL_RES *mysql_exec(const char *sqlstr, ...);
 int mysql_items(MYSQL_RES *res, Item **items);
 void attach(View *v);
 void detach(View *v);
@@ -225,14 +225,20 @@ cleanupview(View *v) {
 }
 
 MYSQL_RES *
-mysql_exec(char *sql) {
+mysql_exec(const char *sqlstr, ...) {
 	MYSQL_RES *res;
+	va_list ap;
+	char sql[8096];
+
+	va_start(ap, sqlstr);
+	vsnprintf(sql, sizeof sql, sqlstr, ap);
+	va_end(ap);
 
 	if(mysql_real_query(mysql, sql, strlen(sql)))
 		return NULL;
 	res = mysql_store_result(mysql);
 	if(!res)
-		return NULL; /* XXX if(mysql_field_count(mysql)) error; */
+		return NULL;
 	return res;
 }
 
@@ -325,10 +331,8 @@ void
 records(void) {
 	Item *item;
 	MYSQL_RES *res;
-	char t[64 + 16]; /* MySQL max table name length is 64. */
 
-	snprintf(t, sizeof t, "select * from `%s`", selitem->fields[0]);
-	if(!(res = mysql_exec(t)))
+	if(!(res = mysql_exec("select * from `%s`", selitem->fields[0])))
 		die("records\n");
 
 	cleanupitems(selview->items);
