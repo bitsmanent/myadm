@@ -102,10 +102,6 @@ static Key keys[] = {
 	/* mode          modkey        function        argument */
         { NULL,          L"Q",         quit,           {.i = 1} },
         { NULL,          L"q",         viewprev,       {0} },
-        { NULL,          L"D",         setmode,        {.v = &modes[0]} },
-        { NULL,          L"T",         setmode,        {.v = &modes[1]} },
-        { NULL,          L"R",         setmode,        {.v = &modes[2]} },
-        { NULL,          L"E",         setmode,        {.v = &modes[3]} },
         { NULL,          L"k",         itempos,        {.i = -1} },
         { NULL,          L"j",         itempos,        {.i = +1} },
         { NULL,          L"I",         reload,         {0} },
@@ -354,7 +350,7 @@ Item *
 getitem(void) {
 	int pos = atoi(stfl_ipool_fromwc(ipool, stfl_get(selview->form, L"pos")));
 	int i = 0;
-	Item *item = NULL;
+	Item *item;
 
 	for(item = selview->items; item; item = item->next)
 		if(i++ == pos)
