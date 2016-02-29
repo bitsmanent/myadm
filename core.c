@@ -130,6 +130,11 @@ quit(const Arg *arg) {
 	char c;
 
 	if(arg->i) {
+		/*
+		char opts = {'y', 'n'};
+		if(choose("Do you want to quit ([y]/n)?", opts) == 'y')
+			return;
+		*/
 		status("Do you want to quit ([y]/n)?");
 		stfl_run(selview->form, -1);
 		while((c = getchar())) {
@@ -448,7 +453,7 @@ main(int argc, char **argv) {
 
 	ipool = stfl_ipool_create(nl_langinfo(CODESET));
 	setmode(&a);
-	status("Welcome to %s", __FILE__);
+	status("Welcome to %s-%s", __FILE__, VERSION);
 
 	while(running) {
 		if(!(ev = stfl_run(selview->form, 0)))
