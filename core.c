@@ -159,6 +159,7 @@ detach(View *v) {
 	*tv = v->next;
 }
 
+/* XXX attachto(void, void)? */
 void
 attachitemto(Item *i, Item **ii) {
 	i->next = *ii;
@@ -193,16 +194,7 @@ setmode(const Arg *arg) {
 	}
 
 	selview = v;
-	/*
-	if(selview->form)
-		return;
-	*/
-	selview->mode->func();
-
-	if(!selview->form) {
-		viewprev(NULL);
-		status("%s: cannot load the mode.", m->name);
-	}
+	v->mode->func();
 }
 
 void
