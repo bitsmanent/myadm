@@ -62,6 +62,7 @@ void records(void);
 void text(void);
 MYSQL_RES *mysql_exec(const char *sqlstr, ...);
 int mysql_items(MYSQL_RES *res, Item **items);
+void mysql_listview(MYSQL_RES *res);
 void attach(View *v);
 void detach(View *v);
 void attachitemto(Item *i, Item **ii);
@@ -198,8 +199,8 @@ setmode(const Arg *arg) {
 	selview = v;
 	v->mode->func();
 
+	/* XXX sort first */
 	/*
-	// XXX sort first
 	char t[8096] = {0};
 	for(v = views; v; v = v->next) {
 		if(v != views)
@@ -302,60 +303,47 @@ stfl_putitem(Item *item) {
 }
 
 void
-databases(void) {
-	MYSQL_RES *res;
+mysql_listview(MYSQL_RES *res) {
 	Item *item;
-
-	if(!(res = mysql_exec("show databases")))
-		die("databases");
 
 	cleanupitems(selview->items);
 	selview->nitems = mysql_items(res, &selview->items);
-	mysql_free_result(res);
 	if(!selview->form)
 		selview->form = stfl_create(L"<items.stfl>");
 
 	stfl_modify(selview->form, L"items", L"replace_inner", L"vbox"); /* clear */
 	for(item = selview->items; item; item = item->next)
 		stfl_putitem(item);
+}
+
+void
+databases(void) {
+	MYSQL_RES *res;
+
+	if(!(res = mysql_exec("show databases")))
+		die("databases");
+	mysql_listview(res);
+	mysql_free_result(res);
 }
 
 void
 tables(void) {
 	MYSQL_RES *res;
-	Item *item;
 
 	if(!(res = mysql_exec("show tables")))
 		die("tables\n");
-
-	cleanupitems(selview->items);
-	selview->nitems = mysql_items(res, &selview->items);
+	mysql_listview(res);
 	mysql_free_result(res);
-	if(!selview->form)
-		selview->form = stfl_create(L"<items.stfl>");
-
-	stfl_modify(selview->form, L"items", L"replace_inner", L"vbox"); /* clear */
-	for(item = selview->items; item; item = item->next)
-		stfl_putitem(item);
 }
 
 void
 records(void) {
-	Item *item;
 	MYSQL_RES *res;
 
 	if(!(res = mysql_exec("select * from `%s`", selitem->fields[0])))
 		die("records\n");
-
-	cleanupitems(selview->items);
-	selview->nitems = mysql_items(res, &selview->items);
+	mysql_listview(res);
 	mysql_free_result(res);
-	if(!selview->form)
-		selview->form = stfl_create(L"<items.stfl>");
-
-	stfl_modify(selview->form, L"items", L"replace_inner", L"vbox"); /* clear */
-	for(item = selview->items; item; item = item->next)
-		stfl_putitem(item);
 }
 
 void
