@@ -70,6 +70,7 @@ void *ecalloc(size_t nmemb, size_t size);
 void cleanupview(View *v);
 void cleanupitems(Item *i);
 Item *getitem(void);
+void stfl_putitem(Item *item);
 void flagas(const Arg *arg);
 void apply(const Arg *arg);
 void quit(const Arg *arg);
@@ -260,73 +261,13 @@ mysql_items(MYSQL_RES *res, Item **items) {
 }
 
 void
-databases(void) {
-	MYSQL_RES *res;
-	Item *item;
-	char txt[256];
+stfl_putitem(Item *item) {
+	char t[32]; /* XXX */
+	char txt[256]; /* XXX */
 
-	if(!(res = mysql_exec("show databases")))
-		die("databases");
-
-	cleanupitems(selview->items);
-	selview->nitems = mysql_items(res, &selview->items);
-	mysql_free_result(res);
-
-	if(!selview->form)
-		selview->form = stfl_create(L"<items.stfl>");
-
-	stfl_modify(selview->form, L"items", L"replace_inner", L"vbox"); /* clear */
-	for(item = selview->items; item; item = item->next) {
+	if(item->nfields == 1)
 		snprintf(txt, sizeof txt, "listitem text:\"%s\"", item->fields[0]);
-		stfl_modify(selview->form, L"items", L"append", stfl_ipool_towc(ipool, txt));
-	}
-	stfl_set(selview->form, L"pos", 0);
-}
-
-void
-tables(void) {
-	MYSQL_RES *res;
-	Item *item;
-	char txt[256];
-
-	if(!(res = mysql_exec("show tables")))
-		die("tables\n");
-
-	cleanupitems(selview->items);
-	selview->nitems = mysql_items(res, &selview->items);
-	mysql_free_result(res);
-
-	if(!selview->form)
-		selview->form = stfl_create(L"<items.stfl>");
-
-	stfl_modify(selview->form, L"items", L"replace_inner", L"vbox"); /* clear */
-	for(item = selview->items; item; item = item->next) {
-		snprintf(txt, sizeof txt, "listitem text:\"%s\"", item->fields[0]);
-		stfl_modify(selview->form, L"items", L"append", stfl_ipool_towc(ipool, txt));
-	}
-	stfl_set(selview->form, L"pos", 0);
-}
-
-void
-records(void) {
-	Item *item;
-	MYSQL_RES *res;
-	char txt[512];
-	char t[32];
-
-	snprintf(txt, sizeof txt, "select * from `%s`", selitem->fields[0]);
-	if(!(res = mysql_exec(txt)))
-		die("records\n");
-
-	cleanupitems(selview->items);
-	selview->nitems = mysql_items(res, &selview->items);
-	mysql_free_result(res);
-
-	if(!selview->form)
-		selview->form = stfl_create(L"<items.stfl>");
-
-	stfl_modify(selview->form, L"items", L"replace_inner", L"vbox"); /* clear */
-	for(item = selview->items; item; item = item->next) {
+	else {
 		strncpy(txt, "listitem text:\"", sizeof txt);
 		for(int i = 0; i < item->nfields; ++i) {
 			snprintf(t, sizeof t, "%8.16s", item->fields[i]);
@@ -336,8 +277,69 @@ records(void) {
 			strncat(txt, t, sizeof txt);
 		}
 		strncat(txt, "\"", sizeof txt);
-		stfl_modify(selview->form, L"items", L"append", stfl_ipool_towc(ipool, txt));
 	}
+	stfl_modify(selview->form, L"items", L"append", stfl_ipool_towc(ipool, txt));
+}
+
+void
+databases(void) {
+	MYSQL_RES *res;
+	Item *item;
+
+	if(!(res = mysql_exec("show databases")))
+		die("databases");
+
+	cleanupitems(selview->items);
+	selview->nitems = mysql_items(res, &selview->items);
+	mysql_free_result(res);
+	if(!selview->form)
+		selview->form = stfl_create(L"<items.stfl>");
+
+	stfl_modify(selview->form, L"items", L"replace_inner", L"vbox"); /* clear */
+	for(item = selview->items; item; item = item->next)
+		stfl_putitem(item);
+	stfl_set(selview->form, L"pos", 0);
+}
+
+void
+tables(void) {
+	MYSQL_RES *res;
+	Item *item;
+
+	if(!(res = mysql_exec("show tables")))
+		die("tables\n");
+
+	cleanupitems(selview->items);
+	selview->nitems = mysql_items(res, &selview->items);
+	mysql_free_result(res);
+	if(!selview->form)
+		selview->form = stfl_create(L"<items.stfl>");
+
+	stfl_modify(selview->form, L"items", L"replace_inner", L"vbox"); /* clear */
+	for(item = selview->items; item; item = item->next)
+		stfl_putitem(item);
+	stfl_set(selview->form, L"pos", 0);
+}
+
+void
+records(void) {
+	Item *item;
+	MYSQL_RES *res;
+	char t[32]; /* XXX */
+
+	snprintf(t, sizeof t, "select * from `%s`", selitem->fields[0]);
+	if(!(res = mysql_exec(t)))
+		die("records\n");
+
+	cleanupitems(selview->items);
+	selview->nitems = mysql_items(res, &selview->items);
+	mysql_free_result(res);
+	if(!selview->form)
+		selview->form = stfl_create(L"<items.stfl>");
+
+	stfl_modify(selview->form, L"items", L"replace_inner", L"vbox"); /* clear */
+	for(item = selview->items; item; item = item->next)
+		stfl_putitem(item);
 	stfl_set(selview->form, L"pos", 0);
 }
 
