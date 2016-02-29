@@ -413,13 +413,13 @@ apply(const Arg *arg) {
 
 void
 status(const char *fmtstr, ...) {
-	/*
-	va_start(ap, errstr);
-	vfprintf(stderr, errstr, ap);
-	va_end(ap);
-	*/
+	va_list ap;
+	char s[512];
 
-	stfl_set(selview->form, L"stext", stfl_ipool_towc(ipool, fmtstr));
+	va_start(ap, fmtstr);
+	vsnprintf(s, sizeof s, fmtstr, ap);
+	va_end(ap);
+	stfl_set(selview->form, L"stext", stfl_ipool_towc(ipool, s));
 }
 
 void
@@ -454,7 +454,7 @@ main(int argc, char **argv) {
 
 	ipool = stfl_ipool_create(nl_langinfo(CODESET));
 	setmode(&a);
-	status("Welcome to core.c");
+	status("Welcome to %s", __FILE__);
 
 	while(running) {
 		if(!(ev = stfl_run(selview->form, 0)))
