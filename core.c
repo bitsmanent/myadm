@@ -52,7 +52,7 @@ struct View {
 
 /* function declarations */
 void die(const char *errstr, ...);
-void status(const char *fmtstr, ...);
+void stfl_setf(const char *name, const char *fmtstr, ...);
 void databases(void);
 void tables(void);
 void records(void);
@@ -95,7 +95,7 @@ char
 choose(const char *msg, char *opts) {
 	char *o, c;
 
-	status(msg);
+	stfl_setf("statustext", msg);
 	stfl_run(selview->form, -1);
 	while((c = getchar())) {
 		if(c == '\r') {
@@ -109,7 +109,7 @@ choose(const char *msg, char *opts) {
 			break;
 	}
 
-	status("");
+	stfl_setf("statustext", "");
 	return *o;
 }
 
@@ -137,7 +137,6 @@ detach(View *v) {
 	*tv = v->next;
 }
 
-/* XXX attachto(void, void)? */
 void
 attachitemto(Item *i, Item **ii) {
 	i->next = *ii;
@@ -198,7 +197,7 @@ setmode(const Arg *arg) {
 	selview->mode->func();
 
 	if(selview->choice && selview->choice->nfields)
-		status("[%s]", selview->choice->fields[0]);
+		stfl_setf("infotext", "[%s]", selview->choice->fields[0]);
 	stfl_set(selview->form, L"pos", 0);
 }
 
@@ -302,6 +301,8 @@ mysql_listview(MYSQL_RES *res) {
 	selview->nitems = mysql_items(res, &selview->items);
 	if(!selview->form)
 		selview->form = stfl_create(L"<items.stfl>");
+
+	/* XXX columns row */
 
 	stfl_modify(selview->form, L"items", L"replace_inner", L"vbox"); /* clear */
 	/* XXX actually in reverse order */
@@ -411,20 +412,20 @@ apply(const Arg *arg) {
 			return;
 	}
 
-	status("Applied!");
+	/* XXX ... */
 
-	/* XXX */
+	stfl_setf("statustext", "Changes applied.");
 }
 
 void
-status(const char *fmtstr, ...) {
+stfl_setf(const char *name, const char *fmtstr, ...) {
 	va_list ap;
 	char s[512];
 
 	va_start(ap, fmtstr);
 	vsnprintf(s, sizeof s, fmtstr, ap);
 	va_end(ap);
-	stfl_set(selview->form, L"stext", stfl_ipool_towc(ipool, s));
+	stfl_set(selview->form, stfl_ipool_towc(ipool, name), stfl_ipool_towc(ipool, s));
 }
 
 void
@@ -459,11 +460,12 @@ main(int argc, char **argv) {
 
 	ipool = stfl_ipool_create(nl_langinfo(CODESET));
 	setmode(&a);
-	status("Welcome to %s-%s", __FILE__, VERSION);
+	stfl_setf("statustext", "Welcome to %s-%s", __FILE__, VERSION);
 
 	while(running) {
 		if(!(ev = stfl_run(selview->form, 0)))
 			continue;
+		stfl_setf("statustext", "");
 		k = NULL;
 		for(i = 0; i < LENGTH(keys); ++i)
 			if(!((keys[i].mode && strcmp(selview->mode->name, keys[i].mode))

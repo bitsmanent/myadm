@@ -10,7 +10,7 @@ vbox[main]
   label
     @style_normal:fg=black,bg=white
     .expand:0
-    text[stext]:""
+    text[infotext]:""
   label
     .expand:0
-    text[cmdline]:""
+    text[statustext]:""
