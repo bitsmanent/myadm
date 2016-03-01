@@ -52,6 +52,9 @@ struct View {
 
 /* function declarations */
 void die(const char *errstr, ...);
+void setup(void);
+void cleanup(void);
+void run(void);
 void stfl_setf(const char *name, const char *fmtstr, ...);
 void databases(void);
 void tables(void);
@@ -173,7 +176,7 @@ copyitem(Item *item) {
 
 void
 setmode(const Arg *arg) {
-	const Mode *m = arg->v;
+	const Mode *m = (arg ? arg->v : &modes[0]);
 	View *v;
 	unsigned int i;
 
@@ -447,20 +450,30 @@ ecalloc(size_t nmemb, size_t size) {
 	return p;
 }
 
-int
-main(int argc, char **argv) {
-	Arg a = {.v = &modes[0]};
-	Key *k;
-	const wchar_t *ev;
-	unsigned int i;
-
+void
+setup(void) {
 	mysql = mysql_init(NULL);
 	if(mysql_real_connect(mysql, dbhost, dbuser, dbpass, NULL, 0, NULL, 0) == NULL)
 		die("Cannot connect to the database.\n");
 
 	ipool = stfl_ipool_create(nl_langinfo(CODESET));
-	setmode(&a);
+	setmode(NULL);
 	stfl_setf("statustext", "Welcome to %s-%s", __FILE__, VERSION);
+}
+
+void
+cleanup(void) {
+	while(views)
+		cleanupview(views);
+	stfl_reset();
+	stfl_ipool_destroy(ipool);
+}
+
+void
+run(void) {
+	Key *k;
+	const wchar_t *ev;
+	unsigned int i;
 
 	while(running) {
 		if(!(ev = stfl_run(selview->form, 0)))
@@ -474,11 +487,12 @@ main(int argc, char **argv) {
 		if(k)
 			k->func(&k->arg);
 	}
+}
 
-	while(views)
-		cleanupview(views);
-
-	stfl_reset();
-	stfl_ipool_destroy(ipool);
+int
+main(int argc, char **argv) {
+	setup();
+	run();
+	cleanup();
 	return 0;
 }
