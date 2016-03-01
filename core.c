@@ -1,3 +1,4 @@
+/* See LICENSE file for copyright and license details. */
 /* http://www.chiark.greenend.org.uk/~sgtatham/algorithms/listsort.html */
 
 #include <stdio.h>
