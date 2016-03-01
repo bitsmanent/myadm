@@ -195,10 +195,11 @@ setmode(const Arg *arg) {
 	v->choice = copyitem(getitem());
 
 	selview = v;
-	v->mode->func();
+	selview->mode->func();
 
-	status("[%s]", selview->mode->name);
-	//stfl_set(selview->form, L"pos", 0);
+	if(selview->choice && selview->choice->nfields)
+		status("[%s]", selview->choice->fields[0]);
+	stfl_set(selview->form, L"pos", 0);
 }
 
 void
@@ -303,6 +304,7 @@ mysql_listview(MYSQL_RES *res) {
 		selview->form = stfl_create(L"<items.stfl>");
 
 	stfl_modify(selview->form, L"items", L"replace_inner", L"vbox"); /* clear */
+	/* XXX actually in reverse order */
 	for(item = selview->items; item; item = item->next)
 		stfl_putitem(item);
 }
