@@ -357,12 +357,15 @@ text(void) {
 
 Item *
 getitem(void) {
-	int pos = atoi(stfl_ipool_fromwc(ipool, stfl_get(selview->form, L"pos")));
-	int i = 0;
 	Item *item;
+	int pos, n;
+	
+	if(!selview)
+		return NULL;
+	pos = atoi(stfl_ipool_fromwc(ipool, stfl_get(selview->form, L"pos")));
 
-	for(item = selview->items; item; item = item->next)
-		if(i++ == pos)
+	for(item = selview->items, n = 0; item; item = item->next, ++n)
+		if(n == pos)
 			break;
 	return item;
 }
