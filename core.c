@@ -197,17 +197,6 @@ setmode(const Arg *arg) {
 	selview = v;
 	v->mode->func();
 
-	/* XXX sort first */
-	/*
-	char t[8096] = {0};
-	for(v = views; v; v = v->next) {
-		if(v != views)
-			strncat(t, " => ", sizeof t);
-		strncat(t, v->items->fields[0], sizeof t);
-	}
-	status("[%s]", t);
-	*/
-
 	status("[%s]", selview->mode->name);
 	//stfl_set(selview->form, L"pos", 0);
 }
@@ -234,6 +223,7 @@ cleanupview(View *v) {
 	cleanupitems(v->items);
 	if(v->form)
 		stfl_free(v->form);
+	free(v->choice);
 	free(v);
 }
 
@@ -268,11 +258,13 @@ mysql_items(MYSQL_RES *res, Item **items) {
 	while((row = mysql_fetch_row(res))) {
 		item = ecalloc(1, sizeof(Item));
 		item->nfields = nfds;
-		item->fields = ecalloc(nfds, sizeof(char *));
-		for(i = 0; i < nfds; ++i) {
-			/* MySQL max column name length is 64 */ 
-			item->fields[i] = ecalloc(64, sizeof(char));
-			snprintf(item->fields[i], 64, "%s", row[i]);
+		if(nfds) {
+			item->fields = ecalloc(nfds, sizeof(char *));
+			for(i = 0; i < nfds; ++i) {
+				/* MySQL max column name length is 64 */ 
+				item->fields[i] = ecalloc(64, sizeof(char));
+				snprintf(item->fields[i], 64, "%s", row[i]);
+			}
 		}
 		attachitemto(item, &(*items));
 	}
