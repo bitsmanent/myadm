@@ -1,4 +1,5 @@
 /* http://www.chiark.greenend.org.uk/~sgtatham/algorithms/listsort.html */
+/* better name/logic(?) from view->choice */
 
 #include <stdio.h>
 #include <stdarg.h>
@@ -44,6 +45,7 @@ typedef struct View View;
 struct View {
 	Mode *mode;
 	Item *items;
+	Item *choice;
 	int nitems;
 	struct stfl_form *form;
 	View *next;
@@ -69,6 +71,7 @@ void cleanupitems(Item *i);
 Item *getitem(void);
 void stfl_putitem(Item *item);
 char choose(const char *msg, char *opts);
+Item *copyitem(Item *item);
 void flagas(const Arg *arg);
 void apply(const Arg *arg);
 void quit(const Arg *arg);
@@ -119,7 +122,6 @@ static int running = 1;
 static MYSQL *mysql;
 static View *views, *selview;
 static struct stfl_ipool *ipool;
-static Item *selitem;
 
 /* function implementations */
 char
@@ -183,6 +185,26 @@ detachitemfrom(Item *i, Item **ii) {
 	*ti = i->next;
 }
 
+Item *
+copyitem(Item *item) {
+	Item *ic;
+	int i;
+
+	if(!item)
+		return NULL;
+
+	ic = ecalloc(1, sizeof(Item));
+	ic->nfields = item->nfields;
+	ic->flags = item->flags;
+	ic->fields = ecalloc(item->nfields, sizeof(char *));
+	for(i = 0; i < item->nfields; ++i) {
+		ic->fields[i] = ecalloc(64, sizeof(char));
+		snprintf(ic->fields[i], 64, "%s", item->fields[i]);
+	}
+
+	return ic;
+}
+
 void
 setmode(const Arg *arg) {
 	const Mode *m = arg->v;
@@ -201,6 +223,10 @@ setmode(const Arg *arg) {
 				v->mode = &modes[i];
 		attach(v);
 	}
+	if(v->choice)
+		free(v->choice);
+	v->choice = copyitem(getitem());
+
 	selview = v;
 	v->mode->func();
 
@@ -345,7 +371,9 @@ void
 records(void) {
 	MYSQL_RES *res;
 
-	if(!(res = mysql_exec("select * from `%s`", selitem->fields[0])))
+	if(!selview->choice || !selview->choice->fields)
+		die("records: no choice.\n");
+	if(!(res = mysql_exec("select * from `%s`", selview->choice->fields[0])))
 		die("records\n");
 	mysql_listview(res);
 	mysql_free_result(res);
@@ -379,7 +407,6 @@ usedb(const Arg *arg) {
 
 void
 usetable(const Arg *arg) {
-	selitem = getitem();
 	setmode(arg);
 }
 
