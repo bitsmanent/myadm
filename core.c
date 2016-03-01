@@ -1,5 +1,4 @@
 /* http://www.chiark.greenend.org.uk/~sgtatham/algorithms/listsort.html */
-/* better name/logic(?) from view->choice */
 
 #include <stdio.h>
 #include <stdarg.h>
@@ -312,6 +311,7 @@ mysql_items(MYSQL_RES *res, Item **items) {
 	return nrows;
 }
 
+/* XXX this function is a disaster */
 void
 stfl_putitem(Item *item) {
 	char t[32]; /* XXX */
@@ -371,7 +371,7 @@ void
 records(void) {
 	MYSQL_RES *res;
 
-	if(!selview->choice || !selview->choice->fields)
+	if(!(selview->choice && selview->choice->nfields))
 		die("records: no choice.\n");
 	if(!(res = mysql_exec("select * from `%s`", selview->choice->fields[0])))
 		die("records\n");
