@@ -189,7 +189,7 @@ setmode(const Arg *arg) {
 	View *v;
 	unsigned int i;
 
-	if(selview && !strcmp(arg->v, m->name))
+	if(selview && selview->mode && !strcmp(selview->mode->name, m->name))
 		return;
 	for(v = views; v; v = v->next)
 		if(!strcmp(v->mode->name, m->name))
