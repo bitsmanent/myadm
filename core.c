@@ -112,7 +112,6 @@ choose(const char *msg, char *opts) {
 		if(*o)
 			break;
 	}
-
 	stfl_setf("statustext", "");
 	return *o;
 }
@@ -143,8 +142,13 @@ detach(View *v) {
 
 void
 attachitemto(Item *i, Item **ii) {
-	i->next = *ii;
-	*ii = i;
+	Item **l;
+
+	for(l = ii; *l && (*l)->next; l = &(*l)->next);
+	if(!*l)
+		*l = i;
+	else
+		(*l)->next = i;
 }
 
 void
