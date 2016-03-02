@@ -411,7 +411,6 @@ viewprev(const Arg *arg) {
 	if(!selview->next)
 		return;
 	selview = selview->next;
-	selview->mode->func();
 }
 
 void
