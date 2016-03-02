@@ -280,27 +280,22 @@ mysql_items(MYSQL_RES *res, Item **items) {
 	return nrows;
 }
 
-/* XXX this function is a disaster */
 void
 stfl_putitem(Item *item) {
 	char t[32];
 	char txt[256];
 	char itm[128];
+	int i;
 
-	if(item->nfields == 1) {
-		snprintf(txt, sizeof txt, "listitem text:\"%s\"", QUOTE(item->fields[0]));
+	itm[0] = '\0';
+	for(i = 0; i < item->nfields; ++i) {
+		snprintf(t, sizeof t, "%-8.16s", item->fields[i]);
+		if(i)
+			strncat(itm, " | ", sizeof itm);
+		strncat(itm, t, sizeof itm);
 	}
-	else {
-		itm[0] = '\0';
-		for(int i = 0; i < item->nfields; ++i) {
-			snprintf(t, sizeof t, "%-8.16s", item->fields[i]);
-			if(i)
-				strncat(itm, " | ", sizeof itm);
-			strncat(itm, t, sizeof itm);
-		}
 
-		snprintf(txt, sizeof txt, "listitem text:%s", QUOTE(itm));
-	}
+	snprintf(txt, sizeof txt, "listitem text:%s", QUOTE(itm));
 	stfl_modify(selview->form, L"items", L"append", stfl_ipool_towc(ipool, txt));
 }
 
@@ -316,7 +311,6 @@ mysql_listview(MYSQL_RES *res) {
 	/* XXX columns row */
 
 	stfl_modify(selview->form, L"items", L"replace_inner", L"vbox"); /* clear */
-	/* XXX actually in reverse order */
 	if(selview->items)
 		selview->form = stfl_create(L"<items.stfl>");
 
