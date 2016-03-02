@@ -205,14 +205,14 @@ setmode(const Arg *arg) {
 	selview = v;
 	selview->mode->func();
 
-	if(selview->choice && selview->choice->nfields)
-		stfl_setf("infotext", "[%s]", selview->choice->fields[0]);
-	stfl_set(selview->form, L"pos", 0);
+	stfl_setf("infotext", "---Core: %d items.", selview->nitems);
 }
 
 void
 reload(const Arg *arg) {
+	const wchar_t *pos = stfl_get(selview->form, L"pos");
 	selview->mode->func();
+	stfl_set(selview->form, L"pos", pos);
 }
 
 void
@@ -364,7 +364,7 @@ Item *
 getitem(void) {
 	Item *item;
 	int pos, n;
-	
+
 	if(!selview)
 		return NULL;
 	pos = atoi(stfl_ipool_fromwc(ipool, stfl_get(selview->form, L"pos")));
