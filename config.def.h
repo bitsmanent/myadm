@@ -1,8 +1,8 @@
 /* See LICENSE file for copyright and license details. */
 
-static const char *dbhost = "localhost";
-static const char *dbuser = "root";
-static const char *dbpass = "m0r3s3cur3";
+static const char *dbhost = "";
+static const char *dbuser = "";
+static const char *dbpass = "";
 
 static Mode modes[] = {
 	/* name         show function */
