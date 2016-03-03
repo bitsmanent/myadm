@@ -537,9 +537,13 @@ usedb(const Arg *arg) {
 
 void
 viewprev(const Arg *arg) {
+	View *v;
+
 	if(!selview->next)
 		return;
-	selview = selview->next;
+	v = selview->next;
+	cleanupview(selview);
+	selview = v;
 }
 
 int
