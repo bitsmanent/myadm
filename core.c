@@ -88,7 +88,7 @@ void setmode(const Arg *arg);
 void setup(void);
 void sigint_handler(int sig);
 void stfl_setf(const char *name, const char *fmtstr, ...);
-void stfl_putitem(Item *item);
+void stfl_putitem(Item *item, unsigned long *lens);
 void tables(void);
 void text(void);
 void usedb(const Arg *arg);
@@ -334,29 +334,37 @@ mysql_items(MYSQL_RES *res, Item **items) {
 void
 mysql_listview(MYSQL_RES *res) {
 	Item *item;
+	unsigned long *lens;
 
 	cleanupitems(selview->items);
 	selview->nitems = mysql_items(res, &selview->items);
 	if(!selview->form)
 		selview->form = stfl_create(L"<items.stfl>");
 	stfl_modify(selview->form, L"items", L"replace_inner", L"vbox"); /* clear */
+	lens = mysql_fetch_lengths(res);
 	for(item = selview->items; item; item = item->next)
-		stfl_putitem(item);
+		stfl_putitem(item, lens);
 }
 
 void
 mysql_showfields(MYSQL_RES *res) {
 	MYSQL_FIELD *fds;
 	char txt[512];
-	int i, len;
+	char t[32];
+	unsigned long *lens;
+	int i, len, slen;
 
 	fds = mysql_fetch_fields(res);
 	len = mysql_num_fields(res);
+	lens = mysql_fetch_lengths(res);
+
 	txt[0] = '\0';
 	for(i = 0; i < len; ++i) {
+		slen = (lens && lens[i] > 16 ? lens[i] : 16);
 		if(i)
 			strncat(txt, " | ", sizeof txt);
-		strncat(txt, fds[i].name, sizeof txt);
+		snprintf(t, sizeof t, "%-*s", slen, fds[i].name);
+		strncat(txt, t, sizeof txt);
 	}
 	stfl_setf("subtle", "%s", txt);
 	stfl_setf("showsubtle", "1");
@@ -407,6 +415,7 @@ run(void) {
 	while(running) {
 		if(!(ev = stfl_run(selview->form, 0)))
 			continue;
+		curs_set(0);
 		stfl_setf("status", "");
 		k = NULL;
 		for(i = 0; i < LENGTH(keys); ++i)
@@ -479,15 +488,16 @@ stfl_setf(const char *name, const char *fmtstr, ...) {
 }
 
 void
-stfl_putitem(Item *item) {
+stfl_putitem(Item *item, unsigned long *lens) {
 	char t[32];
 	char txt[512];
 	char itm[128];
-	int i;
+	int i, slen;
 
 	itm[0] = '\0';
 	for(i = 0; i < item->nfields; ++i) {
-		snprintf(t, sizeof t, "%-8.16s", item->fields[i]);
+		slen = (lens && lens[i] > 16 ? lens[i] : 16);
+		snprintf(t, sizeof t, "%-*.16s", slen, item->fields[i]);
 		if(i)
 			strncat(itm, " | ", sizeof itm);
 		strncat(itm, t, sizeof itm);

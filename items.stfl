@@ -6,13 +6,13 @@ vbox[main]
     text[title]:"The mutt of MySQL - Work in progress..."
     .expand:0
   label
-    @style_normal:attr=bold
+    @style_normal:fg=blue,bg=black,attr=bold
     text[subtle]:""
     .display[showsubtle]:0
     .expand:0
   list[items]
     @style_normal:fg=white,bg=black
-    @style_focus:fg=blue,bg=black
+    @style_focus:fg=white,bg=blue
     pos[pos]:0
   label
     @style_normal:fg=black,bg=white
