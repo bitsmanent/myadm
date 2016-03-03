@@ -4,7 +4,12 @@ vbox[main]
   label
     @style_normal:fg=black,bg=white
     text[title]:"The mutt of MySQL - Work in progress..."
-    .expand:h
+    .expand:0
+  label
+    @style_normal:attr=bold
+    text[subtle]:""
+    .display[showsubtle]:0
+    .expand:0
   list[items]
     @style_normal:fg=white,bg=black
     @style_focus:fg=blue,bg=black
@@ -12,7 +17,7 @@ vbox[main]
   label
     @style_normal:fg=black,bg=white
     .expand:0
-    text[infotext]:""
+    text[info]:""
   label
     .expand:0
-    text[statustext]:""
+    text[status]:""

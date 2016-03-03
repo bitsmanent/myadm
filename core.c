@@ -71,6 +71,7 @@ void text(void);
 MYSQL_RES *mysql_exec(const char *sqlstr, ...);
 int mysql_items(MYSQL_RES *res, Item **items);
 void mysql_listview(MYSQL_RES *res);
+void mysql_showfields(MYSQL_RES *res);
 void attach(View *v);
 void detach(View *v);
 void attachitemto(Item *i, Item **ii);
@@ -104,7 +105,7 @@ char
 choose(const char *msg, char *opts) {
 	char *o, c;
 
-	stfl_setf("statustext", msg);
+	stfl_setf("status", msg);
 	stfl_run(selview->form, -1);
 	while((c = getchar())) {
 		if(c == '\r') {
@@ -117,7 +118,7 @@ choose(const char *msg, char *opts) {
 		if(*o)
 			break;
 	}
-	stfl_setf("statustext", "");
+	stfl_setf("status", "");
 	return *o;
 }
 
@@ -307,18 +308,23 @@ stfl_putitem(Item *item) {
 
 void
 mysql_listview(MYSQL_RES *res) {
-	MYSQL_FIELD *fds;
 	Item *item;
-	char txt[512];
-	int i, len;
 
 	cleanupitems(selview->items);
 	selview->nitems = mysql_items(res, &selview->items);
-
 	if(!selview->form)
 		selview->form = stfl_create(L"<items.stfl>");
+	stfl_modify(selview->form, L"items", L"replace_inner", L"vbox"); /* clear */
+	for(item = selview->items; item; item = item->next)
+		stfl_putitem(item);
+}
 
-	/* column names */
+void
+mysql_showfields(MYSQL_RES *res) {
+	MYSQL_FIELD *fds;
+	char txt[512];
+	int i, len;
+
 	fds = mysql_fetch_fields(res);
 	len = mysql_num_fields(res);
 	txt[0] = '\0';
@@ -327,11 +333,8 @@ mysql_listview(MYSQL_RES *res) {
 			strncat(txt, " | ", sizeof txt);
 		strncat(txt, fds[i].name, sizeof txt);
 	}
-	stfl_setf("title", "%s", txt);
-
-	stfl_modify(selview->form, L"items", L"replace_inner", L"vbox"); /* clear */
-	for(item = selview->items; item; item = item->next)
-		stfl_putitem(item);
+	stfl_setf("subtle", "%s", txt);
+	stfl_setf("showsubtle", "1");
 }
 
 void
@@ -342,7 +345,7 @@ databases(void) {
 		die("databases");
 	mysql_listview(res);
 	mysql_free_result(res);
-	stfl_setf("infotext", "---Core: %d DB(s)", selview->nitems);
+	stfl_setf("info", "---Core: %d DB(s)", selview->nitems);
 }
 
 void
@@ -353,7 +356,8 @@ tables(void) {
 		die("tables\n");
 	mysql_listview(res);
 	mysql_free_result(res);
-	stfl_setf("infotext", "---Core: %d table(s)", selview->nitems);
+	stfl_setf("title", "Tables in `%s`", selview->choice->fields[0]);
+	stfl_setf("info", "%d table(s)", selview->nitems);
 }
 
 void
@@ -365,8 +369,10 @@ records(void) {
 	if(!(res = mysql_exec("select * from `%s`", selview->choice->fields[0])))
 		die("records\n");
 	mysql_listview(res);
+	mysql_showfields(res);
 	mysql_free_result(res);
-	stfl_setf("infotext", "---Core: %d record(s)", selview->nitems);
+	stfl_setf("title", "Records in `%s`", selview->choice->fields[0]);
+	stfl_setf("info", "---Core: %d record(s)", selview->nitems);
 }
 
 void
@@ -430,7 +436,7 @@ apply(const Arg *arg) {
 			return;
 	}
 	/* XXX ... */
-	stfl_setf("statustext", "Changes applied.");
+	stfl_setf("status", "Changes applied.");
 }
 
 void
@@ -471,7 +477,7 @@ setup(void) {
 
 	ipool = stfl_ipool_create(nl_langinfo(CODESET));
 	setmode(NULL);
-	stfl_setf("statustext", "Welcome to %s-%s", __FILE__, VERSION);
+	stfl_setf("status", "Welcome to %s-%s", __FILE__, VERSION);
 }
 
 void
@@ -492,7 +498,7 @@ run(void) {
 	while(running) {
 		if(!(ev = stfl_run(selview->form, 0)))
 			continue;
-		stfl_setf("statustext", "");
+		stfl_setf("status", "");
 		k = NULL;
 		for(i = 0; i < LENGTH(keys); ++i)
 			if(!((keys[i].mode && strcmp(selview->mode->name, keys[i].mode))
