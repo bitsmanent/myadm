@@ -268,6 +268,7 @@ mysql_items(MYSQL_RES *res, Item **items) {
 	MYSQL_ROW row;
 	Item *item;
 	int i, nfds, nrows;
+	unsigned long *lens;
 
 	nfds = mysql_num_fields(res);
 	nrows = mysql_num_rows(res);
@@ -277,11 +278,11 @@ mysql_items(MYSQL_RES *res, Item **items) {
 		item = ecalloc(1, sizeof(Item));
 		item->nfields = nfds;
 		if(nfds) {
+			lens = mysql_fetch_lengths(res);
 			item->fields = ecalloc(nfds, sizeof(char *));
 			for(i = 0; i < nfds; ++i) {
-				/* MySQL max column name length is 64 */ 
-				item->fields[i] = ecalloc(64, sizeof(char));
-				snprintf(item->fields[i], 64, "%s", row[i]);
+				item->fields[i] = ecalloc(lens[i], sizeof(char));
+				snprintf(item->fields[i], lens[i], "%s", row[i]);
 			}
 		}
 		attachitemto(item, &(*items));
