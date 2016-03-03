@@ -11,6 +11,7 @@
 #include <stdarg.h>
 #include <string.h>
 #include <stdlib.h>
+#include <signal.h>
 
 #include <mysql.h>
 #include <stfl.h>
@@ -83,6 +84,7 @@ Item *getitem(void);
 void stfl_putitem(Item *item);
 char choose(const char *msg, char *opts);
 Item *cloneitem(Item *item);
+void sigint_handler(int sig);
 void flagas(const Arg *arg);
 void apply(const Arg *arg);
 void quit(const Arg *arg);
@@ -473,7 +475,15 @@ ecalloc(size_t nmemb, size_t size) {
 }
 
 void
+sigint_handler(int sig) {
+	Arg arg = {.i = 1};
+	quit(&arg);
+}
+
+void
 setup(void) {
+	struct sigaction sa;
+
 	mysql = mysql_init(NULL);
 	if(mysql_real_connect(mysql, dbhost, dbuser, dbpass, NULL, 0, NULL, 0) == NULL)
 		die("Cannot connect to the database.\n");
@@ -481,6 +491,11 @@ setup(void) {
 	ipool = stfl_ipool_create(nl_langinfo(CODESET));
 	setmode(NULL);
 	stfl_setf("status", "Welcome to %s-%s", __FILE__, VERSION);
+
+	sa.sa_flags = 0;
+	sigemptyset(&sa.sa_mask);
+	sa.sa_handler = sigint_handler;
+	sigaction(SIGINT, &sa, NULL);
 }
 
 void
