@@ -12,6 +12,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <signal.h>
+#include <curses.h> /* For curs_set() */
 
 #include <mysql.h>
 #include <stfl.h>
@@ -415,8 +416,11 @@ run(void) {
 	while(running) {
 		if(!(ev = stfl_run(selview->form, 0)))
 			continue;
+
+		/* XXX this shouldn't be called at any cycle */
 		curs_set(0);
 		stfl_setf("status", "");
+
 		k = NULL;
 		for(i = 0; i < LENGTH(keys); ++i)
 			if(!((keys[i].mode && strcmp(selview->mode->name, keys[i].mode))
