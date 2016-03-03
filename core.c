@@ -471,6 +471,7 @@ cleanup(void) {
 		cleanupview(views);
 	stfl_reset();
 	stfl_ipool_destroy(ipool);
+	mysql_close(mysql);
 }
 
 void
