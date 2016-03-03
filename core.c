@@ -281,6 +281,7 @@ mysql_items(MYSQL_RES *res, Item **items) {
 			lens = mysql_fetch_lengths(res);
 			item->fields = ecalloc(nfds, sizeof(char *));
 			for(i = 0; i < nfds; ++i) {
+				++lens[i]; /* Add NUL-byte */
 				item->fields[i] = ecalloc(lens[i], sizeof(char));
 				snprintf(item->fields[i], lens[i], "%s", row[i]);
 			}
