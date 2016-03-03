@@ -12,13 +12,15 @@
 #include <string.h>
 #include <stdlib.h>
 #include <signal.h>
-#include <curses.h> /* For curs_set() */
 
 #include <mysql.h>
 #include <stfl.h>
-
 #include <langinfo.h>
 #include <locale.h>
+#include <curses.h> /* For curs_set() */
+
+#include "arg.h"
+char *argv0;
 
 #define LENGTH(X)               (sizeof X / sizeof X[0])
 #define QUOTE(S)		(stfl_ipool_fromwc(ipool, stfl_quote(stfl_ipool_towc(ipool, S))))
@@ -529,6 +531,11 @@ text(void) {
 }
 
 void
+usage(void) {
+	die("Usage: %s [-hup <arg>]\n", argv0);
+}
+
+void
 usedb(const Arg *arg) {
 	Item *item = getitem();
 	mysql_select_db(mysql, item->fields[0]);
@@ -548,6 +555,18 @@ viewprev(const Arg *arg) {
 
 int
 main(int argc, char **argv) {
+	ARGBEGIN {
+	case 'h':
+		dbhost = EARGF(usage());
+		break;
+	case 'u':
+		dbuser = EARGF(usage());
+		break;
+	case 'p':
+		dbpass = EARGF(usage());
+		break;
+	} ARGEND;
+
 	setup();
 	run();
 	cleanup();
