@@ -406,6 +406,9 @@ itempos(const Arg *arg) {
 	int pos = atoi(stfl_ipool_fromwc(ipool, stfl_get(selview->form, L"pos")));
 	char tmp[8];
 
+	if(!selview->nitems)
+		return;
+
 	pos += arg->i;
 	if(pos < 0)
 		pos = 0;
