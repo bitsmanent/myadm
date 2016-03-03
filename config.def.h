@@ -5,7 +5,7 @@ static const char *dbuser = "";
 static const char *dbpass = "";
 
 static Mode modes[] = {
-	/* name         show function */
+	/* name         function */
 	{ "databases",  databases }, /* first entry is default */
 	{ "tables",     tables },
 	{ "records",    records },

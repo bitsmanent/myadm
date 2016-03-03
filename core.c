@@ -1,5 +1,7 @@
 /* See LICENSE file for copyright and license details. */
 /*
+ * An experiment which is working surprisingly well.
+ *
  * Relevant docs:
  * http://svn.clifford.at/stfl/trunk/README
  * http://www.chiark.greenend.org.uk/~sgtatham/algorithms/listsort.html
@@ -79,7 +81,7 @@ void cleanupitems(Item *i);
 Item *getitem(void);
 void stfl_putitem(Item *item);
 char choose(const char *msg, char *opts);
-Item *copyitem(Item *item);
+Item *cloneitem(Item *item);
 void flagas(const Arg *arg);
 void apply(const Arg *arg);
 void quit(const Arg *arg);
@@ -167,7 +169,7 @@ detachitemfrom(Item *i, Item **ii) {
 }
 
 Item *
-copyitem(Item *item) {
+cloneitem(Item *item) {
 	Item *ic;
 	int i;
 
@@ -206,7 +208,7 @@ setmode(const Arg *arg) {
 	}
 	if(v->choice)
 		free(v->choice);
-	v->choice = copyitem(getitem());
+	v->choice = cloneitem(getitem());
 
 	selview = v;
 	selview->mode->func();
@@ -412,14 +414,13 @@ flagas(const Arg *arg) {
 
 void
 apply(const Arg *arg) {
+	/* XXX if no pending changes, notice and returns */
 	if(arg->i) {
 		char *opts = "yn";
 		if(choose("Apply changes ([y]/n)?", opts) != opts[0])
 			return;
 	}
-
 	/* XXX ... */
-
 	stfl_setf("statustext", "Changes applied.");
 }
 
