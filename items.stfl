@@ -3,7 +3,7 @@
 vbox[main]
   label
     @style_normal:fg=black,bg=white
-    text[ttext]:"The mutt of MySQL - Work in progress..."
+    text[title]:"The mutt of MySQL - Work in progress..."
     .expand:h
   list[items]
     @style_normal:fg=white,bg=black

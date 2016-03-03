@@ -307,7 +307,10 @@ stfl_putitem(Item *item) {
 
 void
 mysql_listview(MYSQL_RES *res) {
+	MYSQL_FIELD *fds;
 	Item *item;
+	char txt[512];
+	int i, len;
 
 	cleanupitems(selview->items);
 	selview->nitems = mysql_items(res, &selview->items);
@@ -315,12 +318,18 @@ mysql_listview(MYSQL_RES *res) {
 	if(!selview->form)
 		selview->form = stfl_create(L"<items.stfl>");
 
-	/* XXX columns row */
+	/* column names */
+	fds = mysql_fetch_fields(res);
+	len = mysql_num_fields(res);
+	txt[0] = '\0';
+	for(i = 0; i < len; ++i) {
+		if(i)
+			strncat(txt, " | ", sizeof txt);
+		strncat(txt, fds[i].name, sizeof txt);
+	}
+	stfl_setf("title", "%s", txt);
 
 	stfl_modify(selview->form, L"items", L"replace_inner", L"vbox"); /* clear */
-	if(selview->items)
-		selview->form = stfl_create(L"<items.stfl>");
-
 	for(item = selview->items; item; item = item->next)
 		stfl_putitem(item);
 }
