@@ -23,9 +23,8 @@ static Key keys[] = {
         { "databases",   L"q",         quit,           {.i = 0} },
         { "databases",   L"ENTER",     usedb,          {.v = &modes[1]} },
         { "databases",   L"SPACE",     usedb,          {.v = &modes[1]} },
-        { "tables",      L"ENTER",     usetable,       {.v = &modes[2]} },
-        { "tables",      L"SPACE",     usetable,       {.v = &modes[2]} },
-        { "records",     L"ENTER",     userecord,      {0} },
+        { "tables",      L"ENTER",     setmode,        {.v = &modes[2]} },
+        { "tables",      L"SPACE",     setmode,        {.v = &modes[2]} },
         { "records",     L"d",         flagas,         {.v = "D"} },
         { "records",     L"t",         flagas,         {.v = "*"} },
 };

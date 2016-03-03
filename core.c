@@ -86,8 +86,6 @@ void quit(const Arg *arg);
 void setmode(const Arg *arg);
 void viewprev(const Arg *arg);
 void usedb(const Arg *arg);
-void usetable(const Arg *arg);
-void userecord(const Arg *arg);
 void itempos(const Arg *arg);
 void reload(const Arg *arg);
 
@@ -121,6 +119,10 @@ choose(const char *msg, char *opts) {
 	return *o;
 }
 
+/* XXX Improved logic:
+ * -1 only ask if there are pending changes
+ *  1 always ask 
+ *  0 never ask */
 void
 quit(const Arg *arg) {
 	if(arg->i) {
@@ -380,15 +382,6 @@ usedb(const Arg *arg) {
 	Item *item = getitem();
 	mysql_select_db(mysql, item->fields[0]);
 	setmode(arg);
-}
-
-void
-usetable(const Arg *arg) {
-	setmode(arg);
-}
-
-void
-userecord(const Arg *arg) {
 }
 
 void
