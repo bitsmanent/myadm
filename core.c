@@ -345,6 +345,7 @@ mysql_listview(MYSQL_RES *res) {
 	lens = mysql_fetch_lengths(res);
 	for(item = selview->items; item; item = item->next)
 		stfl_putitem(item, lens);
+	stfl_set(selview->form, L"pos", L"0");
 }
 
 void
