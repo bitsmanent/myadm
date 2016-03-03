@@ -60,39 +60,39 @@ struct View {
 };
 
 /* function declarations */
-void die(const char *errstr, ...);
-void setup(void);
+void apply(const Arg *arg);
+void attach(View *v);
+void attachitemto(Item *i, Item **ii);
+char choose(const char *msg, char *opts);
 void cleanup(void);
-void run(void);
-void stfl_setf(const char *name, const char *fmtstr, ...);
+void cleanupview(View *v);
+void cleanupitems(Item *i);
+Item *cloneitem(Item *item);
 void databases(void);
-void tables(void);
-void records(void);
-void text(void);
+void detach(View *v);
+void detachitemfrom(Item *i, Item **ii);
+void die(const char *errstr, ...);
+void *ecalloc(size_t nmemb, size_t size);
+void flagas(const Arg *arg);
+Item *getitem(void);
+void itempos(const Arg *arg);
 MYSQL_RES *mysql_exec(const char *sqlstr, ...);
 int mysql_items(MYSQL_RES *res, Item **items);
 void mysql_listview(MYSQL_RES *res);
 void mysql_showfields(MYSQL_RES *res);
-void attach(View *v);
-void detach(View *v);
-void attachitemto(Item *i, Item **ii);
-void detachitemfrom(Item *i, Item **ii);
-void *ecalloc(size_t nmemb, size_t size);
-void cleanupview(View *v);
-void cleanupitems(Item *i);
-Item *getitem(void);
-void stfl_putitem(Item *item);
-char choose(const char *msg, char *opts);
-Item *cloneitem(Item *item);
-void sigint_handler(int sig);
-void flagas(const Arg *arg);
-void apply(const Arg *arg);
 void quit(const Arg *arg);
-void setmode(const Arg *arg);
-void viewprev(const Arg *arg);
-void usedb(const Arg *arg);
-void itempos(const Arg *arg);
+void records(void);
 void reload(const Arg *arg);
+void run(void);
+void setmode(const Arg *arg);
+void setup(void);
+void sigint_handler(int sig);
+void stfl_setf(const char *name, const char *fmtstr, ...);
+void stfl_putitem(Item *item);
+void tables(void);
+void text(void);
+void usedb(const Arg *arg);
+void viewprev(const Arg *arg);
 
 #include "config.h"
 
@@ -103,6 +103,35 @@ static View *views, *selview;
 static struct stfl_ipool *ipool;
 
 /* function implementations */
+void
+apply(const Arg *arg) {
+	/* XXX if no pending changes, notice and returns */
+	if(arg->i) {
+		char *opts = "yn";
+		if(choose("Apply changes ([y]/n)?", opts) != opts[0])
+			return;
+	}
+	/* XXX ... */
+	stfl_setf("status", "Changes applied.");
+}
+
+void
+attach(View *v) {
+	v->next = views;
+	views = v;
+}
+
+void
+attachitemto(Item *i, Item **ii) {
+	Item **l;
+
+	for(l = ii; *l && (*l)->next; l = &(*l)->next);
+	if(!*l)
+		*l = i;
+	else
+		(*l)->next = i;
+}
+
 char
 choose(const char *msg, char *opts) {
 	char *o, c;
@@ -124,104 +153,13 @@ choose(const char *msg, char *opts) {
 	return *o;
 }
 
-/* XXX Improved logic:
- * -1 only ask if there are pending changes
- *  1 always ask 
- *  0 never ask */
 void
-quit(const Arg *arg) {
-	if(arg->i) {
-		char *opts = "yn";
-		if(choose("Do you want to quit ([y]/n)?", opts) != opts[0])
-			return;
-	}
-	running = 0;
-}
-
-void
-attach(View *v) {
-	v->next = views;
-	views = v;
-}
-
-void
-detach(View *v) {
-	View **tv;
-
-	for(tv = &views; *tv && *tv != v; tv = &(*tv)->next);
-	*tv = v->next;
-}
-
-void
-attachitemto(Item *i, Item **ii) {
-	Item **l;
-
-	for(l = ii; *l && (*l)->next; l = &(*l)->next);
-	if(!*l)
-		*l = i;
-	else
-		(*l)->next = i;
-}
-
-void
-detachitemfrom(Item *i, Item **ii) {
-	Item **ti;
-
-	for(ti = &(*ii); *ti && *ti != i; ti = &(*ti)->next);
-	*ti = i->next;
-}
-
-Item *
-cloneitem(Item *item) {
-	Item *ic;
-	int i;
-
-	if(!item)
-		return NULL;
-
-	ic = ecalloc(1, sizeof(Item));
-	ic->nfields = item->nfields;
-	ic->flags = item->flags;
-	ic->fields = ecalloc(item->nfields, sizeof(char *));
-	for(i = 0; i < item->nfields; ++i) {
-		ic->fields[i] = ecalloc(64, sizeof(char));
-		snprintf(ic->fields[i], 64, "%s", item->fields[i]);
-	}
-
-	return ic;
-}
-
-void
-setmode(const Arg *arg) {
-	const Mode *m = (arg ? arg->v : &modes[0]);
-	View *v;
-	unsigned int i;
-
-	if(selview && selview->mode && !strcmp(selview->mode->name, m->name))
-		return;
-	for(v = views; v; v = v->next)
-		if(!strcmp(v->mode->name, m->name))
-			break;
-	if(!v) {
-		v = ecalloc(1, sizeof(View));
-		for(i = 0; i < LENGTH(modes); ++i)
-			if(!strcmp(modes[i].name, m->name))
-				v->mode = &modes[i];
-		attach(v);
-	}
-	if(v->choice)
-		free(v->choice);
-	v->choice = cloneitem(getitem());
-
-	selview = v;
-	selview->mode->func();
-}
-
-void
-reload(const Arg *arg) {
-	const wchar_t *pos = stfl_get(selview->form, L"pos");
-	selview->mode->func();
-	stfl_set(selview->form, L"pos", pos);
+cleanup(void) {
+	while(views)
+		cleanupview(views);
+	stfl_reset();
+	stfl_ipool_destroy(ipool);
+	mysql_close(mysql);
 }
 
 void
@@ -243,6 +181,108 @@ cleanupview(View *v) {
 		stfl_free(v->form);
 	free(v->choice);
 	free(v);
+}
+
+Item *
+cloneitem(Item *item) {
+	Item *ic;
+	int i;
+
+	if(!item)
+		return NULL;
+	ic = ecalloc(1, sizeof(Item));
+	ic->nfields = item->nfields;
+	ic->flags = item->flags;
+	ic->fields = ecalloc(item->nfields, sizeof(char *));
+	for(i = 0; i < item->nfields; ++i) {
+		ic->fields[i] = ecalloc(64, sizeof(char));
+		snprintf(ic->fields[i], 64, "%s", item->fields[i]);
+	}
+	return ic;
+}
+
+void
+databases(void) {
+	MYSQL_RES *res;
+
+	if(!(res = mysql_exec("show databases")))
+		die("databases");
+	mysql_listview(res);
+	mysql_free_result(res);
+	stfl_setf("title", "Databases in `%s`", dbhost);
+	stfl_setf("info", "%d DB(s)", selview->nitems);
+}
+
+void
+detach(View *v) {
+	View **tv;
+
+	for(tv = &views; *tv && *tv != v; tv = &(*tv)->next);
+	*tv = v->next;
+}
+
+void
+detachitemfrom(Item *i, Item **ii) {
+	Item **ti;
+
+	for(ti = &(*ii); *ti && *ti != i; ti = &(*ti)->next);
+	*ti = i->next;
+}
+
+void
+die(const char *errstr, ...) {
+	va_list ap;
+
+	va_start(ap, errstr);
+	vfprintf(stderr, errstr, ap);
+	va_end(ap);
+	exit(1);
+}
+
+void *
+ecalloc(size_t nmemb, size_t size) {
+	void *p;
+
+	if (!(p = calloc(nmemb, size)))
+		die("Cannot allocate memory.");
+	return p;
+}
+
+void
+flagas(const Arg *arg) {
+}
+
+Item *
+getitem(void) {
+	Item *item;
+	int pos, n;
+
+	if(!selview)
+		return NULL;
+	pos = atoi(stfl_ipool_fromwc(ipool, stfl_get(selview->form, L"pos")));
+
+	for(item = selview->items, n = 0; item; item = item->next, ++n)
+		if(n == pos)
+			break;
+	return item;
+}
+
+void
+itempos(const Arg *arg) {
+	int pos = atoi(stfl_ipool_fromwc(ipool, stfl_get(selview->form, L"pos")));
+	char tmp[8];
+
+	if(!selview->nitems)
+		return;
+
+	pos += arg->i;
+	if(pos < 0)
+		pos = 0;
+	else if(pos >= selview->nitems)
+		pos = selview->nitems - 1;
+
+	snprintf(tmp, sizeof tmp, "%d", pos);
+	stfl_set(selview->form, L"pos", stfl_ipool_towc(ipool, tmp));
 }
 
 MYSQL_RES *
@@ -292,25 +332,6 @@ mysql_items(MYSQL_RES *res, Item **items) {
 }
 
 void
-stfl_putitem(Item *item) {
-	char t[32];
-	char txt[256];
-	char itm[128];
-	int i;
-
-	itm[0] = '\0';
-	for(i = 0; i < item->nfields; ++i) {
-		snprintf(t, sizeof t, "%-8.16s", item->fields[i]);
-		if(i)
-			strncat(itm, " | ", sizeof itm);
-		strncat(itm, t, sizeof itm);
-	}
-
-	snprintf(txt, sizeof txt, "listitem text:%s", QUOTE(itm));
-	stfl_modify(selview->form, L"items", L"append", stfl_ipool_towc(ipool, txt));
-}
-
-void
 mysql_listview(MYSQL_RES *res) {
 	Item *item;
 
@@ -341,27 +362,18 @@ mysql_showfields(MYSQL_RES *res) {
 	stfl_setf("showsubtle", "1");
 }
 
+/* XXX Improved logic:
+ * -1 only ask if there are pending changes
+ *  1 always ask 
+ *  0 never ask */
 void
-databases(void) {
-	MYSQL_RES *res;
-
-	if(!(res = mysql_exec("show databases")))
-		die("databases");
-	mysql_listview(res);
-	mysql_free_result(res);
-	stfl_setf("info", "---Core: %d DB(s)", selview->nitems);
-}
-
-void
-tables(void) {
-	MYSQL_RES *res;
-
-	if(!(res = mysql_exec("show tables")))
-		die("tables\n");
-	mysql_listview(res);
-	mysql_free_result(res);
-	stfl_setf("title", "Tables in `%s`", selview->choice->fields[0]);
-	stfl_setf("info", "%d table(s)", selview->nitems);
+quit(const Arg *arg) {
+	if(arg->i) {
+		char *opts = "yn";
+		if(choose("Do you want to quit ([y]/n)?", opts) != opts[0])
+			return;
+	}
+	running = 0;
 }
 
 void
@@ -380,106 +392,55 @@ records(void) {
 }
 
 void
-text(void) {
-}
-
-Item *
-getitem(void) {
-	Item *item;
-	int pos, n;
-
-	if(!selview)
-		return NULL;
-	pos = atoi(stfl_ipool_fromwc(ipool, stfl_get(selview->form, L"pos")));
-
-	for(item = selview->items, n = 0; item; item = item->next, ++n)
-		if(n == pos)
-			break;
-	return item;
+reload(const Arg *arg) {
+	const wchar_t *pos = stfl_get(selview->form, L"pos");
+	selview->mode->func();
+	stfl_set(selview->form, L"pos", pos);
 }
 
 void
-usedb(const Arg *arg) {
-	Item *item = getitem();
-	mysql_select_db(mysql, item->fields[0]);
-	setmode(arg);
-}
+run(void) {
+	Key *k;
+	const wchar_t *ev;
+	unsigned int i;
 
-void
-itempos(const Arg *arg) {
-	int pos = atoi(stfl_ipool_fromwc(ipool, stfl_get(selview->form, L"pos")));
-	char tmp[8];
-
-	if(!selview->nitems)
-		return;
-
-	pos += arg->i;
-	if(pos < 0)
-		pos = 0;
-	else if(pos >= selview->nitems)
-		pos = selview->nitems - 1;
-
-	snprintf(tmp, sizeof tmp, "%d", pos);
-	stfl_set(selview->form, L"pos", stfl_ipool_towc(ipool, tmp));
-}
-
-void
-viewprev(const Arg *arg) {
-	if(!selview->next)
-		return;
-	selview = selview->next;
-}
-
-void
-flagas(const Arg *arg) {
-}
-
-void
-apply(const Arg *arg) {
-	/* XXX if no pending changes, notice and returns */
-	if(arg->i) {
-		char *opts = "yn";
-		if(choose("Apply changes ([y]/n)?", opts) != opts[0])
-			return;
+	while(running) {
+		if(!(ev = stfl_run(selview->form, 0)))
+			continue;
+		stfl_setf("status", "");
+		k = NULL;
+		for(i = 0; i < LENGTH(keys); ++i)
+			if(!((keys[i].mode && strcmp(selview->mode->name, keys[i].mode))
+			|| wcscmp(ev, keys[i].modkey)))
+				k = &keys[i];
+		if(k)
+			k->func(&k->arg);
 	}
-	/* XXX ... */
-	stfl_setf("status", "Changes applied.");
 }
 
 void
-stfl_setf(const char *name, const char *fmtstr, ...) {
-	va_list ap;
-	char s[512];
+setmode(const Arg *arg) {
+	const Mode *m = (arg ? arg->v : &modes[0]);
+	View *v;
+	unsigned int i;
 
-	va_start(ap, fmtstr);
-	vsnprintf(s, sizeof s, fmtstr, ap);
-	va_end(ap);
-	stfl_set(selview->form, stfl_ipool_towc(ipool, name), stfl_ipool_towc(ipool, s));
-}
-
-void
-die(const char *errstr, ...) {
-	va_list ap;
-
-	va_start(ap, errstr);
-	vfprintf(stderr, errstr, ap);
-	va_end(ap);
-	exit(1);
-}
-
-void *
-ecalloc(size_t nmemb, size_t size) {
-	void *p;
-
-	if (!(p = calloc(nmemb, size)))
-		die("Cannot allocate memory.");
-	return p;
-}
-
-void
-sigint_handler(int sig) {
-	Arg arg = {.i = 1};
-	quit(&arg);
+	if(selview && selview->mode && !strcmp(selview->mode->name, m->name))
+		return;
+	for(v = views; v; v = v->next)
+		if(!strcmp(v->mode->name, m->name))
+			break;
+	if(!v) {
+		v = ecalloc(1, sizeof(View));
+		for(i = 0; i < LENGTH(modes); ++i)
+			if(!strcmp(modes[i].name, m->name))
+				v->mode = &modes[i];
+		attach(v);
+	}
+	if(v->choice)
+		free(v->choice);
+	v->choice = cloneitem(getitem());
+	selview = v;
+	selview->mode->func();
 }
 
 void
@@ -501,32 +462,69 @@ setup(void) {
 }
 
 void
-cleanup(void) {
-	while(views)
-		cleanupview(views);
-	stfl_reset();
-	stfl_ipool_destroy(ipool);
-	mysql_close(mysql);
+sigint_handler(int sig) {
+	Arg arg = {.i = 1};
+	quit(&arg);
 }
 
 void
-run(void) {
-	Key *k;
-	const wchar_t *ev;
-	unsigned int i;
+stfl_setf(const char *name, const char *fmtstr, ...) {
+	va_list ap;
+	char s[512];
 
-	while(running) {
-		if(!(ev = stfl_run(selview->form, 0)))
-			continue;
-		stfl_setf("status", "");
-		k = NULL;
-		for(i = 0; i < LENGTH(keys); ++i)
-			if(!((keys[i].mode && strcmp(selview->mode->name, keys[i].mode))
-			|| wcscmp(ev, keys[i].modkey)))
-				k = &keys[i];
-		if(k)
-			k->func(&k->arg);
+	va_start(ap, fmtstr);
+	vsnprintf(s, sizeof s, fmtstr, ap);
+	va_end(ap);
+	stfl_set(selview->form, stfl_ipool_towc(ipool, name), stfl_ipool_towc(ipool, s));
+}
+
+void
+stfl_putitem(Item *item) {
+	char t[32];
+	char txt[512];
+	char itm[128];
+	int i;
+
+	itm[0] = '\0';
+	for(i = 0; i < item->nfields; ++i) {
+		snprintf(t, sizeof t, "%-8.16s", item->fields[i]);
+		if(i)
+			strncat(itm, " | ", sizeof itm);
+		strncat(itm, t, sizeof itm);
 	}
+
+	snprintf(txt, sizeof txt, "listitem text:%s", QUOTE(itm));
+	stfl_modify(selview->form, L"items", L"append", stfl_ipool_towc(ipool, txt));
+}
+
+void
+tables(void) {
+	MYSQL_RES *res;
+
+	if(!(res = mysql_exec("show tables")))
+		die("tables\n");
+	mysql_listview(res);
+	mysql_free_result(res);
+	stfl_setf("title", "Tables in `%s`", selview->choice->fields[0]);
+	stfl_setf("info", "%d table(s)", selview->nitems);
+}
+
+void
+text(void) {
+}
+
+void
+usedb(const Arg *arg) {
+	Item *item = getitem();
+	mysql_select_db(mysql, item->fields[0]);
+	setmode(arg);
+}
+
+void
+viewprev(const Arg *arg) {
+	if(!selview->next)
+		return;
+	selview = selview->next;
 }
 
 int
