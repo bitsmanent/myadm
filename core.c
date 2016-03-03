@@ -419,11 +419,7 @@ run(void) {
 	while(running) {
 		if(!(ev = stfl_run(selview->form, 0)))
 			continue;
-
-		/* XXX this shouldn't be called at any cycle */
-		curs_set(0);
 		stfl_setf("status", "");
-
 		k = NULL;
 		for(i = 0; i < LENGTH(keys); ++i)
 			if(!((keys[i].mode && strcmp(selview->mode->name, keys[i].mode))
@@ -457,6 +453,9 @@ setmode(const Arg *arg) {
 	v->choice = cloneitem(getitem());
 	selview = v;
 	selview->mode->func();
+
+	stfl_run(selview->form, -1);
+	curs_set(0);
 }
 
 void
