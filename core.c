@@ -1,5 +1,9 @@
 /* See LICENSE file for copyright and license details. */
-/* http://www.chiark.greenend.org.uk/~sgtatham/algorithms/listsort.html */
+/*
+ * Relevant docs:
+ * http://svn.clifford.at/stfl/trunk/README
+ * http://www.chiark.greenend.org.uk/~sgtatham/algorithms/listsort.html
+*/
 
 #include <stdio.h>
 #include <stdarg.h>
@@ -204,8 +208,6 @@ setmode(const Arg *arg) {
 
 	selview = v;
 	selview->mode->func();
-
-	stfl_setf("infotext", "---Core: %d items.", selview->nitems);
 }
 
 void
@@ -305,6 +307,7 @@ mysql_listview(MYSQL_RES *res) {
 
 	cleanupitems(selview->items);
 	selview->nitems = mysql_items(res, &selview->items);
+
 	if(!selview->form)
 		selview->form = stfl_create(L"<items.stfl>");
 
@@ -326,6 +329,7 @@ databases(void) {
 		die("databases");
 	mysql_listview(res);
 	mysql_free_result(res);
+	stfl_setf("infotext", "---Core: %d DB(s)", selview->nitems);
 }
 
 void
@@ -336,6 +340,7 @@ tables(void) {
 		die("tables\n");
 	mysql_listview(res);
 	mysql_free_result(res);
+	stfl_setf("infotext", "---Core: %d table(s)", selview->nitems);
 }
 
 void
@@ -348,6 +353,7 @@ records(void) {
 		die("records\n");
 	mysql_listview(res);
 	mysql_free_result(res);
+	stfl_setf("infotext", "---Core: %d record(s)", selview->nitems);
 }
 
 void
