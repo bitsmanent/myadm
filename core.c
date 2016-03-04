@@ -81,7 +81,7 @@ void die(const char *errstr, ...);
 void *ecalloc(size_t nmemb, size_t size);
 void flagas(const Arg *arg);
 Item *getitem(void);
-int *getlengths(Item *items, int nitems);
+int *getmaxlengths(Item *items, int nitems);
 void itempos(const Arg *arg);
 MYSQL_RES *mysql_exec(const char *sqlstr, ...);
 int mysql_items(MYSQL_RES *res, Item **items);
@@ -275,8 +275,16 @@ getitem(void) {
 }
 
 int *
-getlengths(Item *items, int nitems) {
-	return NULL;
+getmaxlengths(Item *items, int nitems) {
+	Item *item;
+	int *lens, i;
+
+	/* XXX -1? */
+	lens = calloc(nitems - 1, sizeof(unsigned int));
+	for(item = items; item; item = item->next)
+		for(i = 0; i < item->nfields; ++i)
+			lens[i] = strlen(item->fields[i]);
+	return lens;
 }
 
 void
@@ -360,7 +368,7 @@ mysql_listview(MYSQL_RES *res, int *lens) {
 void
 mysql_showfields(MYSQL_RES *res, int *lens) {
 	MYSQL_FIELD *fds;
-	char txt[512];
+	char txt[1024];
 	char t[32];
 	int i, len, slen;
 
@@ -372,7 +380,7 @@ mysql_showfields(MYSQL_RES *res, int *lens) {
 		if(i)
 			strncat(txt, " | ", sizeof txt);
 		slen = (lens ? lens[i] : 16);
-		snprintf(t, sizeof t, "%-*.*s", slen, slen, fds[i].name);
+		snprintf(t, sizeof t, "%-.*s", slen, fds[i].name);
 		strncat(txt, t, sizeof txt);
 	}
 	stfl_setf("subtle", "%s", txt);
@@ -403,7 +411,9 @@ records(void) {
 	if(!(res = mysql_exec("select * from `%s`", selview->choice->fields[0])))
 		die("records\n");
 
-	lens = getlengths(selview->items, selview->nitems);
+	/* XXX Store the fields into the view and then call simply
+	 * getmaxlengths(selview); */
+	lens = getmaxlengths(selview->items, selview->nitems);
 	mysql_listview(res, lens); /* create the form */
 	mysql_showfields(res, lens);
 	free(lens);
@@ -512,7 +522,7 @@ stfl_putitem(Item *item, int *lens) {
 	itm[0] = '\0';
 	for(i = 0; i < item->nfields; ++i) {
 		slen = (lens ? lens[i] : 16);
-		snprintf(t, sizeof t, "%-*.*s", slen, slen, item->fields[i]);
+		snprintf(t, sizeof t, "%-.*s", slen, item->fields[i]);
 		if(i)
 			strncat(itm, " | ", sizeof itm);
 		strncat(itm, t, sizeof itm);
