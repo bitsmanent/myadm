@@ -5,6 +5,9 @@
  * Relevant docs:
  * http://svn.clifford.at/stfl/trunk/README
  * http://www.chiark.greenend.org.uk/~sgtatham/algorithms/listsort.html
+ *
+ * Spare notes:
+ * o Put nfields into the view
 */
 
 #include <stdio.h>
@@ -78,11 +81,12 @@ void die(const char *errstr, ...);
 void *ecalloc(size_t nmemb, size_t size);
 void flagas(const Arg *arg);
 Item *getitem(void);
+int *getlengths(Item *items, int nitems);
 void itempos(const Arg *arg);
 MYSQL_RES *mysql_exec(const char *sqlstr, ...);
 int mysql_items(MYSQL_RES *res, Item **items);
-void mysql_listview(MYSQL_RES *res);
-void mysql_showfields(MYSQL_RES *res);
+void mysql_listview(MYSQL_RES *res, int *lens);
+void mysql_showfields(MYSQL_RES *res, int *lens);
 void quit(const Arg *arg);
 void records(void);
 void reload(const Arg *arg);
@@ -91,7 +95,7 @@ void setmode(const Arg *arg);
 void setup(void);
 void sigint_handler(int sig);
 void stfl_setf(const char *name, const char *fmtstr, ...);
-void stfl_putitem(Item *item, unsigned long *lens);
+void stfl_putitem(Item *item, int *lens);
 void tables(void);
 void text(void);
 void usedb(const Arg *arg);
@@ -210,7 +214,7 @@ databases(void) {
 
 	if(!(res = mysql_exec("show databases")))
 		die("databases");
-	mysql_listview(res);
+	mysql_listview(res, NULL);
 	mysql_free_result(res);
 	stfl_setf("title", "Databases in `%s`", dbhost);
 	stfl_setf("info", "%d DB(s)", selview->nitems);
@@ -268,6 +272,11 @@ getitem(void) {
 		if(n == pos)
 			break;
 	return item;
+}
+
+int *
+getlengths(Item *items, int nitems) {
+	return NULL;
 }
 
 void
@@ -335,39 +344,35 @@ mysql_items(MYSQL_RES *res, Item **items) {
 }
 
 void
-mysql_listview(MYSQL_RES *res) {
+mysql_listview(MYSQL_RES *res, int *lens) {
 	Item *item;
-	unsigned long *lens;
 
 	cleanupitems(selview->items);
 	selview->nitems = mysql_items(res, &selview->items);
 	if(!selview->form)
 		selview->form = stfl_create(L"<items.stfl>");
 	stfl_modify(selview->form, L"items", L"replace_inner", L"vbox"); /* clear */
-	lens = mysql_fetch_lengths(res);
 	for(item = selview->items; item; item = item->next)
 		stfl_putitem(item, lens);
 	stfl_set(selview->form, L"pos", L"0");
 }
 
 void
-mysql_showfields(MYSQL_RES *res) {
+mysql_showfields(MYSQL_RES *res, int *lens) {
 	MYSQL_FIELD *fds;
 	char txt[512];
 	char t[32];
-	unsigned long *lens;
 	int i, len, slen;
 
-	fds = mysql_fetch_fields(res);
 	len = mysql_num_fields(res);
-	lens = mysql_fetch_lengths(res);
+	fds = mysql_fetch_fields(res);
 
 	txt[0] = '\0';
 	for(i = 0; i < len; ++i) {
-		slen = (lens && lens[i] > 16 ? lens[i] : 16);
 		if(i)
 			strncat(txt, " | ", sizeof txt);
-		snprintf(t, sizeof t, "%-*s", slen, fds[i].name);
+		slen = (lens ? lens[i] : 16);
+		snprintf(t, sizeof t, "%-*.*s", slen, slen, fds[i].name);
 		strncat(txt, t, sizeof txt);
 	}
 	stfl_setf("subtle", "%s", txt);
@@ -391,13 +396,17 @@ quit(const Arg *arg) {
 void
 records(void) {
 	MYSQL_RES *res;
+	int *lens;
 
 	if(!(selview->choice && selview->choice->nfields))
 		die("records: no choice.\n");
 	if(!(res = mysql_exec("select * from `%s`", selview->choice->fields[0])))
 		die("records\n");
-	mysql_listview(res);
-	mysql_showfields(res);
+
+	lens = getlengths(selview->items, selview->nitems);
+	mysql_listview(res, lens); /* create the form */
+	mysql_showfields(res, lens);
+	free(lens);
 	mysql_free_result(res);
 	stfl_setf("title", "Records in `%s`", selview->choice->fields[0]);
 	stfl_setf("info", "---Core: %d record(s)", selview->nitems);
@@ -494,7 +503,7 @@ stfl_setf(const char *name, const char *fmtstr, ...) {
 }
 
 void
-stfl_putitem(Item *item, unsigned long *lens) {
+stfl_putitem(Item *item, int *lens) {
 	char t[32];
 	char txt[512];
 	char itm[128];
@@ -502,8 +511,8 @@ stfl_putitem(Item *item, unsigned long *lens) {
 
 	itm[0] = '\0';
 	for(i = 0; i < item->nfields; ++i) {
-		slen = (lens && lens[i] > 16 ? lens[i] : 16);
-		snprintf(t, sizeof t, "%-*.16s", slen, item->fields[i]);
+		slen = (lens ? lens[i] : 16);
+		snprintf(t, sizeof t, "%-*.*s", slen, slen, item->fields[i]);
 		if(i)
 			strncat(itm, " | ", sizeof itm);
 		strncat(itm, t, sizeof itm);
@@ -519,7 +528,7 @@ tables(void) {
 
 	if(!(res = mysql_exec("show tables")))
 		die("tables\n");
-	mysql_listview(res);
+	mysql_listview(res, NULL);
 	mysql_free_result(res);
 	stfl_setf("title", "Tables in `%s`", selview->choice->fields[0]);
 	stfl_setf("info", "%d table(s)", selview->nitems);
