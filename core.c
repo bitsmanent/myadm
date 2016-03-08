@@ -1,13 +1,10 @@
-/* See LICENSE file for copyright and license details. */
-/*
+/* See LICENSE file for copyright and license details.
+ *
  * An experiment which is working surprisingly well.
  *
  * Relevant docs:
  * http://svn.clifford.at/stfl/trunk/README
  * http://www.chiark.greenend.org.uk/~sgtatham/algorithms/listsort.html
- *
- * Spare notes:
- * o Put nfields into the view
 */
 
 #include <stdio.h>
@@ -37,10 +34,17 @@ typedef union {
 
 typedef struct Item Item;
 struct Item {
-	char **fields;
-	int nfields;
+	char **pieces;
+	int npieces;
 	unsigned int flags;
 	Item *next;
+};
+
+typedef struct Field Field;
+struct Field {
+	char name[64 + 1]; /* MySQL max field name is 64 bytes */
+	int len;
+	Field *next;
 };
 
 typedef struct {
@@ -60,7 +64,9 @@ struct View {
 	Mode *mode;
 	Item *items;
 	Item *choice;
+	Field *fields;
 	int nitems;
+	int nfields;
 	struct stfl_form *form;
 	View *next;
 };
@@ -68,25 +74,30 @@ struct View {
 /* function declarations */
 void apply(const Arg *arg);
 void attach(View *v);
+void attachfieldto(Field *f, Field **ff);
 void attachitemto(Item *i, Item **ii);
 char choose(const char *msg, char *opts);
 void cleanup(void);
+void cleanupfields(Field **fields);
+void cleanupitems(Item **items);
 void cleanupview(View *v);
-void cleanupitems(Item *i);
 Item *cloneitem(Item *item);
 void databases(void);
 void detach(View *v);
+void detachfieldfrom(Field *f, Field **ff);
 void detachitemfrom(Item *i, Item **ii);
 void die(const char *errstr, ...);
 void *ecalloc(size_t nmemb, size_t size);
 void flagas(const Arg *arg);
 Item *getitem(void);
-int *getmaxlengths(Item *items, int nitems);
+int *getmaxlengths(View *view);
 void itempos(const Arg *arg);
 MYSQL_RES *mysql_exec(const char *sqlstr, ...);
+int mysql_fields(MYSQL_RES *res, Field **fields);
 int mysql_items(MYSQL_RES *res, Item **items);
 void mysql_listview(MYSQL_RES *res, int *lens);
-void mysql_showfields(MYSQL_RES *res, int *lens);
+void stfl_showfields(Field *fds, int *lens);
+void stfl_showitems(Item *items, int *lens);
 void quit(const Arg *arg);
 void records(void);
 void reload(const Arg *arg);
@@ -126,6 +137,17 @@ void
 attach(View *v) {
 	v->next = views;
 	views = v;
+}
+
+void
+attachfieldto(Field *f, Field **ff) {
+	Field **l;
+
+	for(l = ff; *l && (*l)->next; l = &(*l)->next);
+	if(!*l)
+		*l = f;
+	else
+		(*l)->next = f;
 }
 
 void
@@ -170,24 +192,39 @@ cleanup(void) {
 }
 
 void
-cleanupitems(Item *i) {
-	while(i && i->next) {
-		detachitemfrom(i, &i);
-		while(--i->nfields >= 0)
-			free(i->fields[i->nfields]);
-		free(i->fields);
-		free(i);
-	}
-}
-
-void
 cleanupview(View *v) {
 	detach(v);
-	cleanupitems(v->items);
+	cleanupitems(&v->items);
+	cleanupfields(&v->fields);
 	if(v->form)
 		stfl_free(v->form);
 	free(v->choice);
 	free(v);
+}
+
+void
+cleanupfields(Field **fields) {
+	Field *f;
+
+	while(*fields) {
+		f = *fields;
+		detachfieldfrom(f, fields);
+		free(f);
+	}
+}
+
+void
+cleanupitems(Item **items) {
+	Item *i;
+
+	while(*items) {
+		i = *items;
+		detachitemfrom(i, items);
+		while(--i->npieces >= 0)
+			free(i->pieces[i->npieces]);
+		free(i->pieces);
+		free(i);
+	}
 }
 
 Item *
@@ -198,12 +235,12 @@ cloneitem(Item *item) {
 	if(!item)
 		return NULL;
 	ic = ecalloc(1, sizeof(Item));
-	ic->nfields = item->nfields;
+	ic->npieces = item->npieces;
 	ic->flags = item->flags;
-	ic->fields = ecalloc(item->nfields, sizeof(char *));
-	for(i = 0; i < item->nfields; ++i) {
-		ic->fields[i] = ecalloc(64, sizeof(char));
-		snprintf(ic->fields[i], 64, "%s", item->fields[i]);
+	ic->pieces = ecalloc(item->npieces, sizeof(char *));
+	for(i = 0; i < item->npieces; ++i) {
+		ic->pieces[i] = ecalloc(64, sizeof(char));
+		snprintf(ic->pieces[i], 64, "%s", item->pieces[i]);
 	}
 	return ic;
 }
@@ -226,6 +263,14 @@ detach(View *v) {
 
 	for(tv = &views; *tv && *tv != v; tv = &(*tv)->next);
 	*tv = v->next;
+}
+
+void
+detachfieldfrom(Field *f, Field **ff) {
+	Field **tf;
+
+	for(tf = &(*ff); *tf && *tf != f; tf = &(*tf)->next);
+	*tf = f->next;
 }
 
 void
@@ -275,15 +320,25 @@ getitem(void) {
 }
 
 int *
-getmaxlengths(Item *items, int nitems) {
+getmaxlengths(View *view) {
 	Item *item;
-	int *lens, i;
+	Field *fld;
+	int i, slen, *lens;
 
-	/* XXX -1? */
-	lens = calloc(nitems - 1, sizeof(unsigned int));
-	for(item = items; item; item = item->next)
-		for(i = 0; i < item->nfields; ++i)
-			lens[i] = strlen(item->fields[i]);
+	if(!view->nfields)
+		return NULL;
+
+	lens = calloc(view->nfields, sizeof(int));
+	for(fld = view->fields, i = 0; fld; fld = fld->next, ++i)
+		lens[i] = fld->len;
+	for(item = selview->items; item; item = item->next) {
+		for(i = 0; i < item->npieces; ++i) {
+			slen = strlen(item->pieces[i]);
+			if(lens[i] < slen && slen <= 19)
+				lens[i] = slen;
+		}
+	}
+
 	return lens;
 }
 
@@ -324,6 +379,26 @@ mysql_exec(const char *sqlstr, ...) {
 }
 
 int
+mysql_fields(MYSQL_RES *res, Field **fields) {
+	MYSQL_FIELD *fds;
+	Field *field;
+	int nfds, i;
+
+	nfds = mysql_num_fields(res);
+	if(!nfds)
+		return 0;
+	fds = mysql_fetch_fields(res);
+	for(i = 0; i < nfds; ++i) {
+		field = ecalloc(1, sizeof(Field));
+		field->len = fds[i].name_length;
+		strncpy(field->name, fds[i].name, field->len);
+		field->name[field->len] = '\0';
+		attachfieldto(field, fields);
+	}
+	return nfds;
+}
+
+int
 mysql_items(MYSQL_RES *res, Item **items) {
 	MYSQL_ROW row;
 	Item *item;
@@ -336,17 +411,16 @@ mysql_items(MYSQL_RES *res, Item **items) {
 	*items = NULL;
 	while((row = mysql_fetch_row(res))) {
 		item = ecalloc(1, sizeof(Item));
-		item->nfields = nfds;
+		item->npieces = nfds;
 		if(nfds) {
 			lens = mysql_fetch_lengths(res);
-			item->fields = ecalloc(nfds, sizeof(char *));
+			item->pieces = ecalloc(nfds, sizeof(char *));
 			for(i = 0; i < nfds; ++i) {
-				++lens[i]; /* Add NUL-byte */
-				item->fields[i] = ecalloc(lens[i], sizeof(char));
-				snprintf(item->fields[i], lens[i], "%s", row[i]);
+				item->pieces[i] = ecalloc(lens[i] + 1, sizeof(char));
+				strncpy(item->pieces[i], row[i], lens[i]);
 			}
 		}
-		attachitemto(item, &(*items));
+		attachitemto(item, items);
 	}
 	return nrows;
 }
@@ -355,7 +429,7 @@ void
 mysql_listview(MYSQL_RES *res, int *lens) {
 	Item *item;
 
-	cleanupitems(selview->items);
+	cleanupitems(&selview->items);
 	selview->nitems = mysql_items(res, &selview->items);
 	if(!selview->form)
 		selview->form = stfl_create(L"<items.stfl>");
@@ -366,25 +440,32 @@ mysql_listview(MYSQL_RES *res, int *lens) {
 }
 
 void
-mysql_showfields(MYSQL_RES *res, int *lens) {
-	MYSQL_FIELD *fds;
-	char txt[1024];
-	char t[32];
-	int i, len, slen;
-
-	len = mysql_num_fields(res);
-	fds = mysql_fetch_fields(res);
+stfl_showfields(Field *fds, int *lens) {
+	Field *fld;
+	char txt[1024]; /* XXX */
+	char t[1024]; /* XXX */
+	int slen, i;
 
 	txt[0] = '\0';
-	for(i = 0; i < len; ++i) {
+	for(fld = fds, i = 0; fld; fld = fld->next, ++i) {
+		slen = (lens ? lens[i] : 19);
 		if(i)
 			strncat(txt, " | ", sizeof txt);
-		slen = (lens ? lens[i] : 16);
-		snprintf(t, sizeof t, "%-.*s", slen, fds[i].name);
+		snprintf(t, sizeof t, "%-*.*s", slen, slen, fld->name);
 		strncat(txt, t, sizeof txt);
 	}
 	stfl_setf("subtle", "%s", txt);
-	stfl_setf("showsubtle", "1");
+	stfl_setf("showsubtle", (txt[0] ? "1" : "0"));
+}
+
+void
+stfl_showitems(Item *items, int *lens) {
+	Item *item;
+
+	stfl_modify(selview->form, L"items", L"replace_inner", L"vbox"); /* clear */
+	for(item = selview->items; item; item = item->next)
+		stfl_putitem(item, lens);
+	stfl_set(selview->form, L"pos", L"0");
 }
 
 /* XXX Improved logic:
@@ -406,19 +487,25 @@ records(void) {
 	MYSQL_RES *res;
 	int *lens;
 
-	if(!(selview->choice && selview->choice->nfields))
+	if(!(selview->choice && selview->choice->npieces))
 		die("records: no choice.\n");
-	if(!(res = mysql_exec("select * from `%s`", selview->choice->fields[0])))
+	if(!(res = mysql_exec("select * from `%s`", selview->choice->pieces[0])))
 		die("records\n");
 
-	/* XXX Store the fields into the view and then call simply
-	 * getmaxlengths(selview); */
-	lens = getmaxlengths(selview->items, selview->nitems);
-	mysql_listview(res, lens); /* create the form */
-	mysql_showfields(res, lens);
-	free(lens);
+	cleanupitems(&selview->items);
+	cleanupfields(&selview->fields);
+
+	selview->nitems = mysql_items(res, &selview->items);
+	selview->nfields = mysql_fields(res, &selview->fields);
 	mysql_free_result(res);
-	stfl_setf("title", "Records in `%s`", selview->choice->fields[0]);
+	lens = getmaxlengths(selview);
+
+	if(!selview->form)
+		selview->form = stfl_create(L"<items.stfl>");
+	stfl_showitems(selview->items, lens);
+	stfl_showfields(selview->fields, lens);
+
+	stfl_setf("title", "Records in `%s`", selview->choice->pieces[0]);
 	stfl_setf("info", "---Core: %d record(s)", selview->nitems);
 }
 
@@ -520,11 +607,11 @@ stfl_putitem(Item *item, int *lens) {
 	int i, slen;
 
 	itm[0] = '\0';
-	for(i = 0; i < item->nfields; ++i) {
-		slen = (lens ? lens[i] : 16);
-		snprintf(t, sizeof t, "%-.*s", slen, item->fields[i]);
+	for(i = 0; i < item->npieces; ++i) {
+		slen = (lens ? lens[i] : 19);
 		if(i)
 			strncat(itm, " | ", sizeof itm);
+		snprintf(t, sizeof t, "%-*.*s", slen, slen, item->pieces[i]);
 		strncat(itm, t, sizeof itm);
 	}
 
@@ -540,7 +627,7 @@ tables(void) {
 		die("tables\n");
 	mysql_listview(res, NULL);
 	mysql_free_result(res);
-	stfl_setf("title", "Tables in `%s`", selview->choice->fields[0]);
+	stfl_setf("title", "Tables in `%s`", selview->choice->pieces[0]);
 	stfl_setf("info", "%d table(s)", selview->nitems);
 }
 
@@ -556,7 +643,7 @@ usage(void) {
 void
 usedb(const Arg *arg) {
 	Item *item = getitem();
-	mysql_select_db(mysql, item->fields[0]);
+	mysql_select_db(mysql, item->pieces[0]);
 	setmode(arg);
 }
 
