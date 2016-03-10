@@ -1,5 +1,7 @@
 /* See LICENSE file for copyright and license details. */
 
+#define FLDSEP " | "
+
 static const char *dbhost = "";
 static const char *dbuser = "";
 static const char *dbpass = "";

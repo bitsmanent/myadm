@@ -95,7 +95,7 @@ void itempos(const Arg *arg);
 MYSQL_RES *mysql_exec(const char *sqlstr, ...);
 int mysql_fields(MYSQL_RES *res, Field **fields);
 int mysql_items(MYSQL_RES *res, Item **items);
-void mysql_listview(MYSQL_RES *res, int *lens);
+void mysql_listview(MYSQL_RES *res, int showfds);
 void stfl_showfields(Field *fds, int *lens);
 void stfl_showitems(Item *items, int *lens);
 void quit(const Arg *arg);
@@ -119,6 +119,7 @@ static int running = 1;
 static MYSQL *mysql;
 static View *views, *selview;
 static struct stfl_ipool *ipool;
+static int fldseplen;
 
 /* function implementations */
 void
@@ -240,7 +241,7 @@ cloneitem(Item *item) {
 	ic->pieces = ecalloc(item->npieces, sizeof(char *));
 	for(i = 0; i < item->npieces; ++i) {
 		ic->pieces[i] = ecalloc(64, sizeof(char));
-		snprintf(ic->pieces[i], 64, "%s", item->pieces[i]);
+		strncpy(ic->pieces[i], item->pieces[i], 64);
 	}
 	return ic;
 }
@@ -251,7 +252,7 @@ databases(void) {
 
 	if(!(res = mysql_exec("show databases")))
 		die("databases");
-	mysql_listview(res, NULL);
+	mysql_listview(res, 0);
 	mysql_free_result(res);
 	stfl_setf("title", "Databases in `%s`", dbhost);
 	stfl_setf("info", "%d DB(s)", selview->nitems);
@@ -324,21 +325,22 @@ getmaxlengths(View *view) {
 	Item *item;
 	Field *fld;
 	int i, slen, *lens;
+	int nfds;
 
-	if(!view->nfields)
+	if(view->nfields)
+		nfds = view->nfields;
+	else if(view->items)
+		nfds = view->items->npieces;
+	else
 		return NULL;
 
-	lens = calloc(view->nfields, sizeof(int));
+	lens = calloc(nfds, sizeof(int));
 	for(fld = view->fields, i = 0; fld; fld = fld->next, ++i)
 		lens[i] = fld->len;
-	for(item = selview->items; item; item = item->next) {
-		for(i = 0; i < item->npieces; ++i) {
-			slen = strlen(item->pieces[i]);
-			if(lens[i] < slen && slen <= 19)
-				lens[i] = slen;
-		}
-	}
-
+	for(item = view->items; item; item = item->next)
+		for(i = 0; i < item->npieces; ++i)
+			if(lens[i] < (slen = strlen(item->pieces[i])))
+				lens[i] = (slen <= FLDMAXLEN ? slen : FLDMAXLEN);
 	return lens;
 }
 
@@ -426,17 +428,24 @@ mysql_items(MYSQL_RES *res, Item **items) {
 }
 
 void
-mysql_listview(MYSQL_RES *res, int *lens) {
-	Item *item;
+mysql_listview(MYSQL_RES *res, int showfds) {
+	int *lens;
 
 	cleanupitems(&selview->items);
 	selview->nitems = mysql_items(res, &selview->items);
 	if(!selview->form)
 		selview->form = stfl_create(L"<items.stfl>");
-	stfl_modify(selview->form, L"items", L"replace_inner", L"vbox"); /* clear */
-	for(item = selview->items; item; item = item->next)
-		stfl_putitem(item, lens);
-	stfl_set(selview->form, L"pos", L"0");
+	if(showfds) {
+		cleanupfields(&selview->fields);
+		selview->nfields = mysql_fields(res, &selview->fields);
+		lens = getmaxlengths(selview);
+		stfl_showfields(selview->fields, lens);
+	}
+	else {
+		lens = getmaxlengths(selview);
+	}
+	stfl_showitems(selview->items, lens);
+	free(lens);
 }
 
 void
@@ -448,9 +457,9 @@ stfl_showfields(Field *fds, int *lens) {
 
 	txt[0] = '\0';
 	for(fld = fds, i = 0; fld; fld = fld->next, ++i) {
-		slen = (lens ? lens[i] : 19);
+		slen = (lens ? lens[i] : FLDMAXLEN);
 		if(i)
-			strncat(txt, " | ", sizeof txt);
+			strncat(txt, FLDSEP, sizeof txt);
 		snprintf(t, sizeof t, "%-*.*s", slen, slen, fld->name);
 		strncat(txt, t, sizeof txt);
 	}
@@ -485,26 +494,13 @@ quit(const Arg *arg) {
 void
 records(void) {
 	MYSQL_RES *res;
-	int *lens;
 
 	if(!(selview->choice && selview->choice->npieces))
 		die("records: no choice.\n");
 	if(!(res = mysql_exec("select * from `%s`", selview->choice->pieces[0])))
 		die("records\n");
-
-	cleanupitems(&selview->items);
-	cleanupfields(&selview->fields);
-
-	selview->nitems = mysql_items(res, &selview->items);
-	selview->nfields = mysql_fields(res, &selview->fields);
+	mysql_listview(res, 1);
 	mysql_free_result(res);
-	lens = getmaxlengths(selview);
-
-	if(!selview->form)
-		selview->form = stfl_create(L"<items.stfl>");
-	stfl_showitems(selview->items, lens);
-	stfl_showfields(selview->fields, lens);
-
 	stfl_setf("title", "Records in `%s`", selview->choice->pieces[0]);
 	stfl_setf("info", "---Core: %d record(s)", selview->nitems);
 }
@@ -572,6 +568,7 @@ setup(void) {
 	if(mysql_real_connect(mysql, dbhost, dbuser, dbpass, NULL, 0, NULL, 0) == NULL)
 		die("Cannot connect to the database.\n");
 
+	fldseplen = strlen(FLDSEP);
 	ipool = stfl_ipool_create(nl_langinfo(CODESET));
 	setmode(NULL);
 	stfl_setf("status", "Welcome to %s-%s", __FILE__, VERSION);
@@ -601,22 +598,38 @@ stfl_setf(const char *name, const char *fmtstr, ...) {
 
 void
 stfl_putitem(Item *item, int *lens) {
-	char t[32];
-	char txt[512];
-	char itm[128];
-	int i, slen;
+	const char *qline;
+	char *stfl, *fld, *line;
+	int i, len;
 
-	itm[0] = '\0';
+	if(!(item && lens))
+		return;
+
+	fld = calloc(FLDMAXLEN + 1, sizeof(char)); 
+	len = FLDMAXLEN * item->npieces;
+	len += fldseplen * (item->npieces - 1);
+	line = calloc(len + 1, sizeof(char)); 
+
+	line[0] = '\0';
 	for(i = 0; i < item->npieces; ++i) {
-		slen = (lens ? lens[i] : 19);
 		if(i)
-			strncat(itm, " | ", sizeof itm);
-		snprintf(t, sizeof t, "%-*.*s", slen, slen, item->pieces[i]);
-		strncat(itm, t, sizeof itm);
+			strncat(line, FLDSEP, fldseplen);
+		snprintf(fld, lens[i] + 1, "%-*.*s", lens[i], lens[i], item->pieces[i]);
+		strncat(line, fld, lens[i]);
 	}
 
-	snprintf(txt, sizeof txt, "listitem text:%s", QUOTE(itm));
-	stfl_modify(selview->form, L"items", L"append", stfl_ipool_towc(ipool, txt));
+	qline = QUOTE(line);
+	i = strlen("listitem text:");
+	len = strlen(qline) + i;
+	stfl = calloc(len + 1, sizeof(char));
+	strncpy(stfl, "listitem text:", i);
+	strncat(stfl, qline, len - i);
+	stfl[len - 1] = '\0';
+	stfl_modify(selview->form, L"items", L"append", stfl_ipool_towc(ipool, stfl));
+
+	free(stfl);
+	free(line);
+	free(fld);
 }
 
 void
@@ -625,7 +638,7 @@ tables(void) {
 
 	if(!(res = mysql_exec("show tables")))
 		die("tables\n");
-	mysql_listview(res, NULL);
+	mysql_listview(res, 0);
 	mysql_free_result(res);
 	stfl_setf("title", "Tables in `%s`", selview->choice->pieces[0]);
 	stfl_setf("info", "%d table(s)", selview->nitems);
