@@ -481,8 +481,8 @@ stfl_showfields(Field *fds, int *lens) {
 			maxlen = lens[i];
 
 	txtsz = maxlen + 1;
-	txt = ecalloc(txtsz, sizeof(char)); 
 	linesz = maxlen * nfields + fldseplen * (nfields - 1) + 1;
+	txt = ecalloc(txtsz, sizeof(char)); 
 	line = ecalloc(linesz, sizeof(char));
 
 	for(fld = fds, i = 0; fld; fld = fld->next, ++i) {
@@ -654,8 +654,8 @@ stfl_putitem(Item *item, int *lens) {
 			maxlen = lens[i];
 
 	txtsz = maxlen + 1;
-	txt = ecalloc(txtsz, sizeof(char)); 
 	linesz = maxlen * item->ncols + fldseplen * (item->ncols - 1) + 1;
+	txt = ecalloc(txtsz, sizeof(char)); 
 	line = ecalloc(linesz, sizeof(char)); 
 
 	for(i = 0; i < item->ncols; ++i) {

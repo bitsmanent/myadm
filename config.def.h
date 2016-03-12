@@ -1,6 +1,7 @@
 /* See LICENSE file for copyright and license details. */
 
 #define FLDSEP " | "
+#define FLDMAXLEN 19 /* MySQL represents a timestamp in 19 chars. */
 
 static const char *dbhost = "";
 static const char *dbuser = "";
