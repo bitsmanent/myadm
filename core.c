@@ -201,7 +201,8 @@ cleanupview(View *v) {
 	cleanupfields(&v->fields);
 	if(v->form)
 		stfl_free(v->form);
-	free(v->choice);
+	if(v->choice)
+		cleanupitems(&v->choice);
 	free(v);
 }
 
@@ -239,13 +240,14 @@ cloneitem(Item *item) {
 	if(!item)
 		return NULL;
 	ic = ecalloc(1, sizeof(Item));
+	ic->lens = ecalloc(1, sizeof(int *));
 	ic->npieces = item->npieces;
 	ic->flags = item->flags;
 	ic->pieces = ecalloc(1, sizeof(char *));
 	for(i = 0; i < item->npieces; ++i) {
-		/* XXX pieces are allocated dynamically, the size is not 64. */
-		ic->pieces[i] = ecalloc(64, sizeof(char));
-		strncpy(ic->pieces[i], item->pieces[i], 64);
+		ic->pieces[i] = ecalloc(item->lens[i], sizeof(char));
+		ic->lens[i] = item->lens[i];
+		strncpy(ic->pieces[i], item->pieces[i], item->lens[i]);
 	}
 	return ic;
 }
