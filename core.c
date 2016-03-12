@@ -35,6 +35,7 @@ typedef union {
 typedef struct Item Item;
 struct Item {
 	char **pieces;
+	int *lens;
 	int npieces;
 	unsigned int flags;
 	Item *next;
@@ -224,6 +225,7 @@ cleanupitems(Item **items) {
 		detachitemfrom(i, items);
 		while(--i->npieces >= 0)
 			free(i->pieces[i->npieces]);
+		free(i->lens);
 		free(i->pieces);
 		free(i);
 	}
@@ -336,12 +338,12 @@ getmaxlengths(View *view) {
 	else
 		return NULL;
 
-	lens = calloc(nfds, sizeof(int));
+	lens = ecalloc(nfds, sizeof(int));
 	for(fld = view->fields, i = 0; fld; fld = fld->next, ++i)
 		lens[i] = fld->len;
 	for(item = view->items; item; item = item->next)
 		for(i = 0; i < item->npieces; ++i)
-			if(lens[i] < (slen = strlen(item->pieces[i])))
+			if(lens[i] < (slen = item->lens[i]))
 				lens[i] = (slen <= FLDMAXLEN ? slen : FLDMAXLEN);
 	return lens;
 }
@@ -416,11 +418,13 @@ mysql_items(MYSQL_RES *res, Item **items) {
 	while((row = mysql_fetch_row(res))) {
 		item = ecalloc(1, sizeof(Item));
 		item->npieces = nfds;
+		item->lens = ecalloc(nfds, sizeof(int));
 		if(nfds) {
 			lens = mysql_fetch_lengths(res);
 			item->pieces = ecalloc(nfds, sizeof(char *));
 			for(i = 0; i < nfds; ++i) {
 				item->pieces[i] = ecalloc(lens[i] + 1, sizeof(char));
+				item->lens[i] = lens[i];
 				strncpy(item->pieces[i], row[i], lens[i]);
 			}
 		}
@@ -460,10 +464,10 @@ stfl_showfields(Field *fds, int *lens) {
 		return;
 
 	nfields = selview->nfields;
-	txt = calloc(FLDMAXLEN + 1, sizeof(char)); 
+	txt = ecalloc(FLDMAXLEN + 1, sizeof(char)); 
 	len = FLDMAXLEN * nfields;
 	len += fldseplen * (nfields - 1);
-	line = calloc(len + 1, sizeof(char)); 
+	line = ecalloc(len + 1, sizeof(char)); 
 
 	line[0] = '\0';
 	for(fld = fds, i = 0; fld; fld = fld->next, ++i) {
@@ -620,10 +624,10 @@ stfl_putitem(Item *item, int *lens) {
 	if(!(item && lens))
 		return;
 
-	txt = calloc(FLDMAXLEN + 1, sizeof(char)); 
+	txt = ecalloc(FLDMAXLEN + 1, sizeof(char)); 
 	len = FLDMAXLEN * item->npieces;
 	len += fldseplen * (item->npieces - 1);
-	line = calloc(len + 1, sizeof(char)); 
+	line = ecalloc(len + 1, sizeof(char)); 
 
 	line[0] = '\0';
 	for(i = 0; i < item->npieces; ++i) {
@@ -638,7 +642,7 @@ stfl_putitem(Item *item, int *lens) {
 	qline = QUOTE(line);
 	i = strlen("listitem text:");
 	len = strlen(qline) + i;
-	stfl = calloc(len + 1, sizeof(char));
+	stfl = ecalloc(len + 1, sizeof(char));
 	strncpy(stfl, "listitem text:", i);
 	strncat(stfl, qline, len - i);
 	stfl[len - 1] = '\0';
@@ -654,7 +658,7 @@ stripesc(char *s, int len) {
 	char *ret;
 	int i, n;
 
-	ret = calloc(len, sizeof(char));
+	ret = ecalloc(len, sizeof(char));
 	for(i = 0, n = 0; i < len; ++i)
 		if(s[i] != '\r' && s[i] != '\n' && s[i] != '\t')
 			ret[n++] = s[i];
