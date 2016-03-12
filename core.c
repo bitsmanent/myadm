@@ -34,9 +34,9 @@ typedef union {
 
 typedef struct Item Item;
 struct Item {
-	char **pieces;
+	char **cols;
 	int *lens;
-	int npieces;
+	int ncols;
 	unsigned int flags;
 	Item *next;
 };
@@ -224,10 +224,10 @@ cleanupitems(Item **items) {
 	while(*items) {
 		i = *items;
 		detachitemfrom(i, items);
-		while(--i->npieces >= 0)
-			free(i->pieces[i->npieces]);
+		while(--i->ncols >= 0)
+			free(i->cols[i->ncols]);
 		free(i->lens);
-		free(i->pieces);
+		free(i->cols);
 		free(i);
 	}
 }
@@ -240,16 +240,16 @@ cloneitem(Item *item) {
 	if(!item)
 		return NULL;
 
-	nfds = item->npieces;
+	nfds = item->ncols;
 	ic = ecalloc(1, sizeof(Item));
-	ic->pieces = ecalloc(nfds, sizeof(char *));
+	ic->cols = ecalloc(nfds, sizeof(char *));
 	ic->lens = ecalloc(nfds, sizeof(int));
-	ic->npieces = nfds;
+	ic->ncols = nfds;
 	ic->flags = item->flags;
 	for(i = 0; i < nfds; ++i) {
-		ic->pieces[i] = ecalloc(item->lens[i], sizeof(char));
+		ic->cols[i] = ecalloc(item->lens[i], sizeof(char));
 		ic->lens[i] = item->lens[i];
-		memcpy(ic->pieces[i], item->pieces[i], item->lens[i]);
+		memcpy(ic->cols[i], item->cols[i], item->lens[i]);
 	}
 	return ic;
 }
@@ -338,7 +338,7 @@ getmaxlengths(View *view) {
 	if(view->nfields)
 		nfds = view->nfields;
 	else if(view->items)
-		nfds = view->items->npieces;
+		nfds = view->items->ncols;
 	else
 		return NULL;
 
@@ -346,7 +346,7 @@ getmaxlengths(View *view) {
 	for(fld = view->fields, i = 0; fld; fld = fld->next, ++i)
 		lens[i] = fld->len;
 	for(item = view->items; item; item = item->next) {
-		for(i = 0; i < item->npieces; ++i) {
+		for(i = 0; i < item->ncols; ++i) {
 			slen = item->lens[i];
 			if(!lens[i]) {
 				lens[i] = (slen <= FLDMAXLEN ? slen : FLDMAXLEN);
@@ -429,12 +429,12 @@ mysql_items(MYSQL_RES *res, Item **items) {
 	while((row = mysql_fetch_row(res))) {
 		item = ecalloc(1, sizeof(Item));
 		item->lens = ecalloc(nfds, sizeof(int));
-		item->pieces = ecalloc(nfds, sizeof(char *));
+		item->cols = ecalloc(nfds, sizeof(char *));
 		lens = mysql_fetch_lengths(res);
-		item->npieces = nfds;
+		item->ncols = nfds;
 		for(i = 0; i < nfds; ++i) {
-			item->pieces[i] = ecalloc(lens[i], sizeof(char));
-			memcpy(item->pieces[i], row[i], lens[i]);
+			item->cols[i] = ecalloc(lens[i], sizeof(char));
+			memcpy(item->cols[i], row[i], lens[i]);
 			item->lens[i] = lens[i];
 		}
 		attachitemto(item, items);
@@ -467,7 +467,7 @@ mysql_listview(MYSQL_RES *res, int showfds) {
 void
 stfl_showfields(Field *fds, int *lens) {
 	Field *fld;
-	char *txt, *line, *piece;
+	char *txt, *line, *col;
 	int i, len, nfields, txtsz, linesz, maxlen;
 
 	if(!(fds && lens))
@@ -490,12 +490,12 @@ stfl_showfields(Field *fds, int *lens) {
 			strncat(line, FLDSEP, linesz);
 			linesz -= fldseplen;
 		}
-		piece = stripesc(fld->name, fld->len);
+		col = stripesc(fld->name, fld->len);
 		len = (lens[i] <= txtsz ? lens[i] : txtsz);
-		snprintf(txt, txtsz, "%-*.*s", len, len, piece);
+		snprintf(txt, txtsz, "%-*.*s", len, len, col);
 		strncat(line, txt, linesz);
 		linesz -= len;
-		free(piece);
+		free(col);
 	}
 
 	stfl_setf("subtle", "%s", line);
@@ -535,9 +535,9 @@ records(void) {
 	char *tbl;
 
 	tbl = calloc(selview->choice->lens[0] + 1, sizeof(char));
-	memcpy(tbl, selview->choice->pieces[0], selview->choice->lens[0]);
+	memcpy(tbl, selview->choice->cols[0], selview->choice->lens[0]);
 
-	if(!(selview->choice && selview->choice->npieces))
+	if(!(selview->choice && selview->choice->ncols))
 		die("records: no choice.\n");
 	if(!(res = mysql_exec("select * from `%s`", tbl)))
 		die("records: cannot select `%s`\n", tbl);
@@ -642,33 +642,33 @@ stfl_setf(const char *name, const char *fmtstr, ...) {
 void
 stfl_putitem(Item *item, int *lens) {
 	const char *qline;
-	char *stfl, *txt, *line, *piece;
+	char *stfl, *txt, *line, *col;
 	int i, len, txtsz, linesz, maxlen;
 
 	if(!(item && lens))
 		return;
 
 	maxlen = 0;
-	for(i = 0; i < item->npieces; ++i)
+	for(i = 0; i < item->ncols; ++i)
 		if(maxlen < lens[i])
 			maxlen = lens[i];
 
 	txtsz = maxlen + 1;
 	txt = ecalloc(txtsz, sizeof(char)); 
-	linesz = maxlen * item->npieces + fldseplen * (item->npieces - 1) + 1;
+	linesz = maxlen * item->ncols + fldseplen * (item->ncols - 1) + 1;
 	line = ecalloc(linesz, sizeof(char)); 
 
-	for(i = 0; i < item->npieces; ++i) {
+	for(i = 0; i < item->ncols; ++i) {
 		if(i) {
 			strncat(line, FLDSEP, linesz);
 			linesz -= fldseplen;
 		}
-		piece = stripesc(item->pieces[i], lens[i]);
+		col = stripesc(item->cols[i], lens[i]);
 		len = (lens[i] <= txtsz ? lens[i] : txtsz);
-		snprintf(txt, txtsz, "%-*.*s", len, len, piece);
+		snprintf(txt, txtsz, "%-*.*s", len, len, col);
 		strncat(line, txt, linesz);
 		linesz -= len;
-		free(piece);
+		free(col);
 	}
 
 	/* XXX cleanup */
@@ -705,7 +705,7 @@ tables(void) {
 		die("tables\n");
 	mysql_listview(res, 0);
 	mysql_free_result(res);
-	stfl_setf("title", "Tables in `%s`", selview->choice->pieces[0]);
+	stfl_setf("title", "Tables in `%s`", selview->choice->cols[0]);
 	stfl_setf("info", "%d table(s)", selview->nitems);
 }
 
@@ -721,7 +721,7 @@ usage(void) {
 void
 usedb(const Arg *arg) {
 	Item *item = getitem();
-	mysql_select_db(mysql, item->pieces[0]);
+	mysql_select_db(mysql, item->cols[0]);
 	setmode(arg);
 }
 
