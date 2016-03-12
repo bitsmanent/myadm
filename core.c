@@ -541,11 +541,11 @@ records(void) {
 		die("records: no choice.\n");
 	if(!(res = mysql_exec("select * from `%s`", tbl)))
 		die("records: cannot select `%s`\n", tbl);
-	free(tbl);
 	mysql_listview(res, 1);
 	mysql_free_result(res);
 	stfl_setf("title", "Records in `%s`", tbl);
 	stfl_setf("info", "---Core: %d record(s)", selview->nitems);
+	free(tbl);
 }
 
 void
