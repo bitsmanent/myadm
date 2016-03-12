@@ -684,7 +684,7 @@ text(void) {
 
 void
 usage(void) {
-	die("Usage: %s [-hup <arg>]\n", argv0);
+	die("Usage: %s [-vhup <arg>]\n", argv0);
 }
 
 void
@@ -717,6 +717,8 @@ main(int argc, char **argv) {
 	case 'p':
 		dbpass = EARGF(usage());
 		break;
+	case 'v':
+		die("%s " VERSION " (c) 2016 Claudio Alessi\n", argv0);
 	} ARGEND;
 
 	setup();
