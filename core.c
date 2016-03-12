@@ -107,6 +107,7 @@ void setup(void);
 void sigint_handler(int sig);
 void stfl_setf(const char *name, const char *fmtstr, ...);
 void stfl_putitem(Item *item, int *lens);
+char *stripesc(char *s, int len);
 void tables(void);
 void text(void);
 void usedb(const Arg *arg);
@@ -238,8 +239,9 @@ cloneitem(Item *item) {
 	ic = ecalloc(1, sizeof(Item));
 	ic->npieces = item->npieces;
 	ic->flags = item->flags;
-	ic->pieces = ecalloc(item->npieces, sizeof(char *));
+	ic->pieces = ecalloc(1, sizeof(char *));
 	for(i = 0; i < item->npieces; ++i) {
+		/* XXX pieces are allocated dynamically, the size is not 64. */
 		ic->pieces[i] = ecalloc(64, sizeof(char));
 		strncpy(ic->pieces[i], item->pieces[i], 64);
 	}
@@ -599,7 +601,7 @@ stfl_setf(const char *name, const char *fmtstr, ...) {
 void
 stfl_putitem(Item *item, int *lens) {
 	const char *qline;
-	char *stfl, *fld, *line;
+	char *stfl, *fld, *line, *piece;
 	int i, len;
 
 	if(!(item && lens))
@@ -614,7 +616,9 @@ stfl_putitem(Item *item, int *lens) {
 	for(i = 0; i < item->npieces; ++i) {
 		if(i)
 			strncat(line, FLDSEP, fldseplen);
-		snprintf(fld, lens[i] + 1, "%-*.*s", lens[i], lens[i], item->pieces[i]);
+		piece = stripesc(item->pieces[i], lens[i]);
+		snprintf(fld, lens[i] + 1, "%-*.*s", lens[i], lens[i], piece);
+		free(piece);
 		strncat(line, fld, lens[i]);
 	}
 
@@ -630,6 +634,19 @@ stfl_putitem(Item *item, int *lens) {
 	free(stfl);
 	free(line);
 	free(fld);
+}
+
+char *
+stripesc(char *s, int len) {
+	char *ret;
+	int i, n;
+
+	ret = calloc(len, sizeof(char));
+	for(i = 0, n = 0; i < len; ++i)
+		if(s[i] != '\r' && s[i] != '\n' && s[i] != '\t')
+			ret[n++] = s[i];
+	ret[n] = '\0';
+	return ret;
 }
 
 void
