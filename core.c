@@ -349,10 +349,10 @@ getmaxlengths(View *view) {
 		for(i = 0; i < item->ncols; ++i) {
 			slen = item->lens[i];
 			if(!lens[i]) {
-				lens[i] = (slen <= FLDMAXLEN ? slen : FLDMAXLEN);
+				lens[i] = (slen <= MAXCOLSZ ? slen : MAXCOLSZ);
 				continue;
 			}
-			if(lens[i] < (slen = item->lens[i]) && slen <= FLDMAXLEN)
+			if(lens[i] < (slen = item->lens[i]) && slen <= MAXCOLSZ)
 				lens[i] = slen;
 		}
 	}
