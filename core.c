@@ -453,20 +453,33 @@ mysql_listview(MYSQL_RES *res, int showfds) {
 void
 stfl_showfields(Field *fds, int *lens) {
 	Field *fld;
-	char txt[1024]; /* XXX */
-	char t[1024]; /* XXX */
-	int slen, i;
+	char *txt, *line, *piece;
+	int i, len, nfields;
 
-	txt[0] = '\0';
+	if(!(fds && lens))
+		return;
+
+	nfields = selview->nfields;
+	txt = calloc(FLDMAXLEN + 1, sizeof(char)); 
+	len = FLDMAXLEN * nfields;
+	len += fldseplen * (nfields - 1);
+	line = calloc(len + 1, sizeof(char)); 
+
+	line[0] = '\0';
 	for(fld = fds, i = 0; fld; fld = fld->next, ++i) {
-		slen = (lens ? lens[i] : FLDMAXLEN);
 		if(i)
-			strncat(txt, FLDSEP, sizeof txt);
-		snprintf(t, sizeof t, "%-*.*s", slen, slen, fld->name);
-		strncat(txt, t, sizeof txt);
+			strncat(line, FLDSEP, fldseplen);
+		piece = stripesc(fld->name, fld->len);
+		snprintf(txt, lens[i] + 1, "%-*.*s", lens[i], lens[i], piece);
+		free(piece);
+		strncat(line, txt, lens[i]);
 	}
-	stfl_setf("subtle", "%s", txt);
-	stfl_setf("showsubtle", (txt[0] ? "1" : "0"));
+
+	stfl_setf("subtle", "%s", line);
+	stfl_setf("showsubtle", (line[0] ? "1" : "0"));
+
+	free(line);
+	free(txt);
 }
 
 void
@@ -601,13 +614,13 @@ stfl_setf(const char *name, const char *fmtstr, ...) {
 void
 stfl_putitem(Item *item, int *lens) {
 	const char *qline;
-	char *stfl, *fld, *line, *piece;
+	char *stfl, *txt, *line, *piece;
 	int i, len;
 
 	if(!(item && lens))
 		return;
 
-	fld = calloc(FLDMAXLEN + 1, sizeof(char)); 
+	txt = calloc(FLDMAXLEN + 1, sizeof(char)); 
 	len = FLDMAXLEN * item->npieces;
 	len += fldseplen * (item->npieces - 1);
 	line = calloc(len + 1, sizeof(char)); 
@@ -617,9 +630,9 @@ stfl_putitem(Item *item, int *lens) {
 		if(i)
 			strncat(line, FLDSEP, fldseplen);
 		piece = stripesc(item->pieces[i], lens[i]);
-		snprintf(fld, lens[i] + 1, "%-*.*s", lens[i], lens[i], piece);
+		snprintf(txt, lens[i] + 1, "%-*.*s", lens[i], lens[i], piece);
 		free(piece);
-		strncat(line, fld, lens[i]);
+		strncat(line, txt, lens[i]);
 	}
 
 	qline = QUOTE(line);
@@ -633,7 +646,7 @@ stfl_putitem(Item *item, int *lens) {
 
 	free(stfl);
 	free(line);
-	free(fld);
+	free(txt);
 }
 
 char *
