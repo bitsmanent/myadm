@@ -24,6 +24,7 @@ char *argv0;
 
 #define LENGTH(X)               (sizeof X / sizeof X[0])
 #define QUOTE(S)		(stfl_ipool_fromwc(ipool, stfl_quote(stfl_ipool_towc(ipool, S))))
+#define LINESIZE(N)		(MAXCOLSZ * (N) + fldseplen * ((N) - 1) + 1);
 
 typedef union {
 	int i;
@@ -333,7 +334,7 @@ int *
 getmaxlengths(View *view) {
 	Item *item;
 	Field *fld;
-	int i, slen, nfds, *lens;
+	int i, nfds, *lens;
 
 	if(view->nfields)
 		nfds = view->nfields;
@@ -344,18 +345,11 @@ getmaxlengths(View *view) {
 
 	lens = ecalloc(nfds, sizeof(int));
 	for(fld = view->fields, i = 0; fld; fld = fld->next, ++i)
-		lens[i] = fld->len;
-	for(item = view->items; item; item = item->next) {
-		for(i = 0; i < item->ncols; ++i) {
-			slen = item->lens[i];
-			if(!lens[i]) {
-				lens[i] = (slen <= MAXCOLSZ ? slen : MAXCOLSZ);
-				continue;
-			}
-			if(lens[i] < (slen = item->lens[i]) && slen <= MAXCOLSZ)
-				lens[i] = slen;
-		}
-	}
+		lens[i] = (fld->len <= MAXCOLSZ ? fld->len : MAXCOLSZ);
+	for(item = view->items; item; item = item->next)
+		for(i = 0; i < item->ncols; ++i)
+			if(lens[i] < item->lens[i])
+				lens[i] = (item->lens[i] <= MAXCOLSZ ? item->lens[i] : MAXCOLSZ);
 	return lens;
 }
 
@@ -456,8 +450,11 @@ void
 mysql_listview(MYSQL_RES *res, int showfds) {
 	int *lens;
 
-	if(!selview->form)
+	if(!selview->form) {
 		selview->form = stfl_create(L"<items.stfl>");
+		stfl_run(selview->form, -1);
+		curs_set(0);
+	}
 	cleanupitems(&selview->items);
 	selview->nitems = mysql_items(res, &selview->items);
 	if(showfds) {
@@ -477,39 +474,34 @@ mysql_listview(MYSQL_RES *res, int showfds) {
 void
 stfl_showfields(Field *fds, int *lens) {
 	Field *fld;
-	char *txt, *line, *col;
-	int i, len, nfields, txtsz, linesz, maxlen;
+	char line[COLS+1], txt[MAXCOLSZ+1], col[MAXCOLSZ+1];
+	int i, len, nfields, linesz;
 
 	if(!(fds && lens))
 		return;
 
 	for(fld = fds, nfields = 0; fld; fld = fld->next, ++nfields);
 
-	maxlen = maxof(lens, nfields);
-	txtsz = maxlen + 1;
-	linesz = maxlen * nfields + fldseplen * (nfields - 1) + 1;
-	txt = ecalloc(txtsz, sizeof(char)); 
-	line = ecalloc(linesz, sizeof(char));
-	col = ecalloc(maxlen + 1, sizeof(char));
-
+	linesz = sizeof line;
+	line[0] = '\0';
 	for(fld = fds, i = 0; fld; fld = fld->next, ++i) {
 		if(i) {
 			strncat(line, FLDSEP, linesz);
 			linesz -= fldseplen;
+			if(linesz <= 0)
+				break;
 		}
-		len = stripesc(col, fld->name, fld->len);
+		len = stripesc(col, fld->name, lens[i]);
 		col[len] = '\0';
-		snprintf(txt, txtsz, "%-*.*s", lens[i], lens[i], col);
+		snprintf(txt, sizeof txt, "%-*.*s", lens[i], lens[i], col);
 		strncat(line, txt, linesz);
 		linesz -= lens[i];
+		if(linesz <= 0)
+			break;
 	}
 
 	stfl_setf("subtle", "%s", line);
 	stfl_setf("showsubtle", (line[0] ? "1" : "0"));
-
-	free(line);
-	free(txt);
-	free(col);
 }
 
 void
@@ -605,9 +597,6 @@ setmode(const Arg *arg) {
 	v->choice = cloneitem(getitem());
 	selview = v;
 	selview->mode->func();
-
-	stfl_run(selview->form, -1);
-	curs_set(0);
 }
 
 void
@@ -649,29 +638,28 @@ stfl_setf(const char *name, const char *fmtstr, ...) {
 void
 stfl_putitem(Item *item, int *lens) {
 	const char *qline;
-	char *stfl, *txt, *line, *col;
-	int i, len, txtsz, linesz, maxlen;
+	char *stfl, line[COLS + 1], txt[MAXCOLSZ+1], col[MAXCOLSZ+1];
+	int i, len, linesz;
 
 	if(!(item && lens))
 		return;
 
-	maxlen = maxof(lens, item->ncols);
-	txtsz = maxlen + 1;
-	linesz = maxlen * item->ncols + fldseplen * (item->ncols - 1) + 1;
-	txt = ecalloc(txtsz, sizeof(char)); 
-	line = ecalloc(linesz, sizeof(char)); 
-	col = ecalloc(maxlen + 1, sizeof(char));
-
+	linesz = sizeof line;
+	line[0] = '\0';
 	for(i = 0; i < item->ncols; ++i) {
 		if(i) {
 			strncat(line, FLDSEP, linesz);
 			linesz -= fldseplen;
+			if(linesz <= 0)
+				break;
 		}
 		len = stripesc(col, item->cols[i], lens[i]);
 		col[len] = '\0';
-		snprintf(txt, txtsz, "%-*.*s", lens[i], lens[i], col);
+		snprintf(txt, sizeof txt, "%-*.*s", lens[i], lens[i], col);
 		strncat(line, txt, linesz);
 		linesz -= lens[i];
+		if(linesz <= 0)
+			break;
 	}
 
 	/* XXX cleanup */
@@ -684,9 +672,6 @@ stfl_putitem(Item *item, int *lens) {
 	stfl_modify(selview->form, L"items", L"append", stfl_ipool_towc(ipool, stfl));
 
 	free(stfl);
-	free(line);
-	free(txt);
-	free(col);
 }
 
 int
