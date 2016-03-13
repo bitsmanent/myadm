@@ -333,8 +333,7 @@ int *
 getmaxlengths(View *view) {
 	Item *item;
 	Field *fld;
-	int i, slen, *lens;
-	int nfds;
+	int i, slen, nfds, *lens;
 
 	if(view->nfields)
 		nfds = view->nfields;
@@ -392,7 +391,7 @@ MYSQL_RES *
 mysql_exec(const char *sqlstr, ...) {
 	MYSQL_RES *res;
 	va_list ap;
-	char sql[8192]; /* XXX */
+	char sql[128];
 	int sqlen;
 
 	va_start(ap, sqlstr);
@@ -639,7 +638,7 @@ sigint_handler(int sig) {
 void
 stfl_setf(const char *name, const char *fmtstr, ...) {
 	va_list ap;
-	char s[512];
+	char s[256];
 
 	va_start(ap, fmtstr);
 	vsnprintf(s, sizeof s, fmtstr, ap);
