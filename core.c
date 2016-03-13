@@ -94,7 +94,6 @@ void flagas(const Arg *arg);
 Item *getitem(void);
 int *getmaxlengths(View *view);
 void itempos(const Arg *arg);
-int maxof(int *list, int size);
 MYSQL_RES *mysql_exec(const char *sqlstr, ...);
 int mysql_fields(MYSQL_RES *res, Field **fields);
 int mysql_items(MYSQL_RES *res, Item **items);
@@ -369,16 +368,6 @@ itempos(const Arg *arg) {
 
 	snprintf(tmp, sizeof tmp, "%d", pos);
 	stfl_set(selview->form, L"pos", stfl_ipool_towc(ipool, tmp));
-}
-
-int
-maxof(int *list, int size) {
-	int i, max = 0;
-
-	for(i = 0; i < size; ++i)
-		if(max < list[i])
-			max = list[i];
-	return max;
 }
 
 MYSQL_RES *
