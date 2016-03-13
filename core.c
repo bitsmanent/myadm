@@ -93,6 +93,7 @@ void flagas(const Arg *arg);
 Item *getitem(void);
 int *getmaxlengths(View *view);
 void itempos(const Arg *arg);
+int maxof(int *list, int size);
 MYSQL_RES *mysql_exec(const char *sqlstr, ...);
 int mysql_fields(MYSQL_RES *res, Field **fields);
 int mysql_items(MYSQL_RES *res, Item **items);
@@ -377,6 +378,16 @@ itempos(const Arg *arg) {
 	stfl_set(selview->form, L"pos", stfl_ipool_towc(ipool, tmp));
 }
 
+int
+maxof(int *list, int size) {
+	int i, max = 0;
+
+	for(i = 0; i < size; ++i)
+		if(max < list[i])
+			max = list[i];
+	return max;
+}
+
 MYSQL_RES *
 mysql_exec(const char *sqlstr, ...) {
 	MYSQL_RES *res;
@@ -475,11 +486,7 @@ stfl_showfields(Field *fds, int *lens) {
 
 	for(fld = fds, nfields = 0; fld; fld = fld->next, ++nfields);
 
-	maxlen = 0;
-	for(i = 0; i < nfields; ++i)
-		if(maxlen < lens[i])
-			maxlen = lens[i];
-
+	maxlen = maxof(lens, nfields);
 	txtsz = maxlen + 1;
 	linesz = maxlen * nfields + fldseplen * (nfields - 1) + 1;
 	txt = ecalloc(txtsz, sizeof(char)); 
@@ -649,11 +656,7 @@ stfl_putitem(Item *item, int *lens) {
 	if(!(item && lens))
 		return;
 
-	maxlen = 0;
-	for(i = 0; i < item->ncols; ++i)
-		if(maxlen < lens[i])
-			maxlen = lens[i];
-
+	maxlen = maxof(lens, item->ncols);
 	txtsz = maxlen + 1;
 	linesz = maxlen * item->ncols + fldseplen * (item->ncols - 1) + 1;
 	txt = ecalloc(txtsz, sizeof(char)); 
