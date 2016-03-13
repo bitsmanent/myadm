@@ -354,13 +354,14 @@ getmaxlengths(View *view) {
 
 void
 itempos(const Arg *arg) {
-	int pos = atoi(stfl_ipool_fromwc(ipool, stfl_get(selview->form, L"pos")));
+	const char *spos = stfl_ipool_fromwc(ipool, stfl_get(selview->form, L"pos"));
 	char tmp[8];
+	int pos;
 
-	if(!selview->nitems)
+	if(!spos)
 		return;
 
-	pos += arg->i;
+	pos = atoi(spos) + arg->i;
 	if(pos < 0)
 		pos = 0;
 	else if(pos >= selview->nitems)
@@ -441,7 +442,7 @@ mysql_listview(MYSQL_RES *res, int showfds) {
 
 	if(!selview->form) {
 		selview->form = stfl_create(L"<items.stfl>");
-		stfl_run(selview->form, -1);
+		stfl_run(selview->form, -1); /* init ncurses */
 		curs_set(0);
 	}
 	cleanupitems(&selview->items);
