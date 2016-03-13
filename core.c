@@ -108,7 +108,7 @@ void setup(void);
 void sigint_handler(int sig);
 void stfl_setf(const char *name, const char *fmtstr, ...);
 void stfl_putitem(Item *item, int *lens);
-char *stripesc(char *s, int len);
+int stripesc(char *src, char *dst, int len);
 void tables(void);
 void text(void);
 void usedb(const Arg *arg);
@@ -484,18 +484,18 @@ stfl_showfields(Field *fds, int *lens) {
 	linesz = maxlen * nfields + fldseplen * (nfields - 1) + 1;
 	txt = ecalloc(txtsz, sizeof(char)); 
 	line = ecalloc(linesz, sizeof(char));
+	col = ecalloc(maxlen + 1, sizeof(char));
 
 	for(fld = fds, i = 0; fld; fld = fld->next, ++i) {
 		if(i) {
 			strncat(line, FLDSEP, linesz);
 			linesz -= fldseplen;
 		}
-		col = stripesc(fld->name, fld->len);
-		len = (lens[i] <= txtsz ? lens[i] : txtsz);
-		snprintf(txt, txtsz, "%-*.*s", len, len, col);
+		len = stripesc(col, fld->name, fld->len);
+		col[len] = '\0';
+		snprintf(txt, txtsz, "%-*.*s", lens[i], lens[i], col);
 		strncat(line, txt, linesz);
-		linesz -= len;
-		free(col);
+		linesz -= lens[i];
 	}
 
 	stfl_setf("subtle", "%s", line);
@@ -503,6 +503,7 @@ stfl_showfields(Field *fds, int *lens) {
 
 	free(line);
 	free(txt);
+	free(col);
 }
 
 void
@@ -657,18 +658,18 @@ stfl_putitem(Item *item, int *lens) {
 	linesz = maxlen * item->ncols + fldseplen * (item->ncols - 1) + 1;
 	txt = ecalloc(txtsz, sizeof(char)); 
 	line = ecalloc(linesz, sizeof(char)); 
+	col = ecalloc(maxlen + 1, sizeof(char));
 
 	for(i = 0; i < item->ncols; ++i) {
 		if(i) {
 			strncat(line, FLDSEP, linesz);
 			linesz -= fldseplen;
 		}
-		col = stripesc(item->cols[i], lens[i]);
-		len = (lens[i] <= txtsz ? lens[i] : txtsz);
-		snprintf(txt, txtsz, "%-*.*s", len, len, col);
+		len = stripesc(col, item->cols[i], lens[i]);
+		col[len] = '\0';
+		snprintf(txt, txtsz, "%-*.*s", lens[i], lens[i], col);
 		strncat(line, txt, linesz);
-		linesz -= len;
-		free(col);
+		linesz -= lens[i];
 	}
 
 	/* XXX cleanup */
@@ -683,18 +684,17 @@ stfl_putitem(Item *item, int *lens) {
 	free(stfl);
 	free(line);
 	free(txt);
+	free(col);
 }
 
-char *
-stripesc(char *s, int len) {
-	char *ret;
+int
+stripesc(char *dst, char *src, int len) {
 	int i, n;
 
-	ret = ecalloc(len, sizeof(char));
 	for(i = 0, n = 0; i < len; ++i)
-		if(s[i] != '\r' && s[i] != '\n' && s[i] != '\t')
-			ret[n++] = s[i];
-	return ret;
+		if(src[i] != '\r' && src[i] != '\n' && src[i] != '\t')
+			dst[n++] = src[i];
+	return n;
 }
 
 void
