@@ -57,8 +57,8 @@ typedef struct {
 } Key;
 
 typedef struct {
-	const char *name;
-	void (*func)(void);
+	char *name;
+	void (*func)(const Arg *arg);
 } Mode;
 
 typedef struct View View;
@@ -84,7 +84,7 @@ void cleanupfields(Field **fields);
 void cleanupitems(Item **items);
 void cleanupview(View *v);
 Item *cloneitem(Item *item);
-void databases(void);
+void databases(const Arg *arg);
 void detach(View *v);
 void detachfieldfrom(Field *f, Field **ff);
 void detachitemfrom(Item *i, Item **ii);
@@ -93,26 +93,26 @@ void *ecalloc(size_t nmemb, size_t size);
 void flagas(const Arg *arg);
 Item *getitem(void);
 int *getmaxlengths(View *view);
+void help(const Arg *arg);
 void itempos(const Arg *arg);
 MYSQL_RES *mysql_exec(const char *sqlstr, ...);
 int mysql_fields(MYSQL_RES *res, Field **fields);
 int mysql_items(MYSQL_RES *res, Item **items);
 void mysql_listview(MYSQL_RES *res, int showfds);
+View *newaview(const char *name, void (*func)(const Arg *arg));
 void stfl_showfields(Field *fds, int *lens);
 void stfl_showitems(Item *items, int *lens);
 void quit(const Arg *arg);
-void records(void);
+void records(const Arg *arg);
 void reload(const Arg *arg);
 void run(void);
-void setmode(const Arg *arg);
 void setup(void);
 void sigint_handler(int sig);
 void stfl_setf(const char *name, const char *fmtstr, ...);
 void stfl_putitem(Item *item, int *lens);
 int stripesc(char *src, char *dst, int len);
-void tables(void);
-void text(void);
-void usedb(const Arg *arg);
+void tables(const Arg *arg);
+void text(const Arg *arg);
 void viewprev(const Arg *arg);
 
 #include "config.h"
@@ -120,7 +120,7 @@ void viewprev(const Arg *arg);
 /* variables */
 static int running = 1;
 static MYSQL *mysql;
-static View *views, *selview;
+static View *views, *selview = NULL;
 static struct stfl_ipool *ipool;
 static int fldseplen;
 
@@ -256,11 +256,14 @@ cloneitem(Item *item) {
 }
 
 void
-databases(void) {
+databases(const Arg *arg) {
 	MYSQL_RES *res;
+	int refresh = (selview && !strcmp(selview->mode->name, "databases"));
 
 	if(!(res = mysql_exec("show databases")))
-		die("databases");
+		die("databases\n");
+	if(!refresh)
+		selview = newaview("databases", databases);
 	mysql_listview(res, 0);
 	mysql_free_result(res);
 	stfl_setf("title", "Databases in `%s`", dbhost);
@@ -316,12 +319,13 @@ flagas(const Arg *arg) {
 
 Item *
 getitem(void) {
+	const char *spos = stfl_ipool_fromwc(ipool, stfl_get(selview->form, L"pos"));
 	Item *item;
 	int pos, n;
 
-	if(!selview)
+	if(!(selview && spos))
 		return NULL;
-	pos = atoi(stfl_ipool_fromwc(ipool, stfl_get(selview->form, L"pos")));
+	pos = atoi(spos);
 
 	for(item = selview->items, n = 0; item; item = item->next, ++n)
 		if(n == pos)
@@ -350,6 +354,18 @@ getmaxlengths(View *view) {
 			if(lens[i] < item->lens[i])
 				lens[i] = (item->lens[i] <= MAXCOLSZ ? item->lens[i] : MAXCOLSZ);
 	return lens;
+}
+
+void
+help(const Arg *arg) {
+	int refresh = (selview && !strcmp(selview->mode->name, "help"));
+
+	if(!refresh) {
+		selview = newaview("help", help);
+		selview->form = stfl_create(L"<help.stfl>");
+	}
+	else
+		stfl_setf("status", "Text updated.");
 }
 
 void
@@ -440,13 +456,15 @@ void
 mysql_listview(MYSQL_RES *res, int showfds) {
 	int *lens;
 
-	if(!selview->form) {
-		selview->form = stfl_create(L"<items.stfl>");
-		stfl_run(selview->form, -1); /* init ncurses */
-		curs_set(0);
-	}
 	cleanupitems(&selview->items);
 	selview->nitems = mysql_items(res, &selview->items);
+
+	if(!selview->form) {
+		selview->form = stfl_create(L"<items.stfl>");
+		stfl_run(selview->form, -1); /* refresh ncurses */
+		curs_set(0);
+	}
+
 	if(showfds) {
 		cleanupfields(&selview->fields);
 		selview->nfields = mysql_fields(res, &selview->fields);
@@ -459,6 +477,19 @@ mysql_listview(MYSQL_RES *res, int showfds) {
 
 	stfl_showitems(selview->items, lens);
 	free(lens);
+}
+
+View *
+newaview(const char *name, void (*func)(const Arg *arg)) {
+	View *v;
+
+	v = ecalloc(1, sizeof(View));
+	v->mode = ecalloc(1, sizeof(Mode));
+	v->mode->name = ecalloc(strlen(name)+1, sizeof(char));
+	strcpy(v->mode->name, name);
+	v->mode->func = func;
+	attach(v);
+	return v;
 }
 
 void
@@ -519,17 +550,23 @@ quit(const Arg *arg) {
 }
 
 void
-records(void) {
+records(const Arg *arg) {
+	int refresh = (selview && !strcmp(selview->mode->name, "records"));
+	Item *choice = (refresh ? selview->choice : cloneitem(getitem()));
 	MYSQL_RES *res;
 	char *tbl;
 
-	tbl = calloc(selview->choice->lens[0] + 1, sizeof(char));
-	memcpy(tbl, selview->choice->cols[0], selview->choice->lens[0]);
-
-	if(!(selview->choice && selview->choice->ncols))
+	choice = (refresh ? selview->choice : cloneitem(getitem()));
+	if(!choice->ncols)
 		die("records: no choice.\n");
+	tbl = calloc(choice->lens[0] + 1, sizeof(char));
+	memcpy(tbl, choice->cols[0], choice->lens[0]);
 	if(!(res = mysql_exec("select * from `%s`", tbl)))
 		die("records: cannot select `%s`\n", tbl);
+	if(!refresh) {
+		selview = newaview("records", records);
+		selview->choice = choice;
+	}
 	mysql_listview(res, 1);
 	mysql_free_result(res);
 	stfl_setf("title", "Records in `%s`", tbl);
@@ -540,8 +577,11 @@ records(void) {
 void
 reload(const Arg *arg) {
 	const wchar_t *pos = stfl_get(selview->form, L"pos");
-	selview->mode->func();
-	stfl_set(selview->form, L"pos", pos);
+	if(!selview->mode->func)
+		return;
+	selview->mode->func(NULL);
+	if(pos)
+		stfl_set(selview->form, L"pos", pos);
 }
 
 void
@@ -565,31 +605,6 @@ run(void) {
 }
 
 void
-setmode(const Arg *arg) {
-	const Mode *m = (arg ? arg->v : &modes[0]);
-	View *v;
-	unsigned int i;
-
-	if(selview && selview->mode && !strcmp(selview->mode->name, m->name))
-		return;
-	for(v = views; v; v = v->next)
-		if(!strcmp(v->mode->name, m->name))
-			break;
-	if(!v) {
-		v = ecalloc(1, sizeof(View));
-		for(i = 0; i < LENGTH(modes); ++i)
-			if(!strcmp(modes[i].name, m->name))
-				v->mode = &modes[i];
-		attach(v);
-	}
-	if(v->choice)
-		free(v->choice);
-	v->choice = cloneitem(getitem());
-	selview = v;
-	selview->mode->func();
-}
-
-void
 setup(void) {
 	struct sigaction sa;
 
@@ -599,7 +614,7 @@ setup(void) {
 
 	fldseplen = strlen(FLDSEP);
 	ipool = stfl_ipool_create(nl_langinfo(CODESET));
-	setmode(NULL);
+	welcome(NULL);
 	stfl_setf("status", "Welcome to %s-%s", __FILE__, VERSION);
 
 	sa.sa_flags = 0;
@@ -675,31 +690,32 @@ stripesc(char *dst, char *src, int len) {
 }
 
 void
-tables(void) {
-	MYSQL_RES *res;
-
-	if(!(res = mysql_exec("show tables")))
-		die("tables\n");
-	mysql_listview(res, 0);
-	mysql_free_result(res);
-	stfl_setf("title", "Tables in `%s`", selview->choice->cols[0]);
-	stfl_setf("info", "%d table(s)", selview->nitems);
-}
-
-void
-text(void) {
-}
-
-void
 usage(void) {
 	die("Usage: %s [-vhup <arg>]\n", argv0);
 }
 
 void
-usedb(const Arg *arg) {
-	Item *item = getitem();
-	mysql_select_db(mysql, item->cols[0]);
-	setmode(arg);
+tables(const Arg *arg) {
+	int refresh = (selview && !strcmp(selview->mode->name, "tables"));
+	Item *choice = (refresh ? selview->choice : cloneitem(getitem()));
+	MYSQL_RES *res;
+
+	if(!refresh) {
+		selview = newaview("tables", tables);
+		selview->choice = choice;
+		mysql_select_db(mysql, choice->cols[0]);
+	}
+	if(!(res = mysql_exec("show tables")))
+		die("tables\n");
+	mysql_listview(res, 0);
+	mysql_free_result(res);
+	stfl_setf("title", "Tables in `%s`", choice->cols[0]);
+	stfl_setf("info", "%d table(s)", selview->nitems);
+}
+
+void
+text(const Arg *arg) {
+	stfl_setf("status", "I don't know how to refresh the content.");
 }
 
 void

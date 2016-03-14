@@ -7,13 +7,7 @@ static const char *dbhost = "";
 static const char *dbuser = "";
 static const char *dbpass = "";
 
-static Mode modes[] = {
-	/* name         function */
-	{ "databases",  databases }, /* first entry is default */
-	{ "tables",     tables },
-	{ "records",    records },
-	{ "text",       text },
-};
+static void (*welcome)(const Arg *arg) = databases;
 
 static Key keys[] = {
 	/* mode          modkey        function        argument */
@@ -23,11 +17,12 @@ static Key keys[] = {
         { NULL,          L"j",         itempos,        {.i = +1} },
         { NULL,          L"I",         reload,         {0} },
         { NULL,          L"$",         apply,          {.i = 1} },
+        { NULL,          L"?",         help,           {0} },
         { "databases",   L"q",         quit,           {.i = 0} },
-        { "databases",   L"ENTER",     usedb,          {.v = &modes[1]} },
-        { "databases",   L"SPACE",     usedb,          {.v = &modes[1]} },
-        { "tables",      L"ENTER",     setmode,        {.v = &modes[2]} },
-        { "tables",      L"SPACE",     setmode,        {.v = &modes[2]} },
+        { "databases",   L"ENTER",     tables,         {0} },
+        { "databases",   L"SPACE",     tables,         {0} },
+        { "tables",      L"ENTER",     records,        {0} },
+        { "tables",      L"SPACE",     records,        {0} },
         { "records",     L"d",         flagas,         {.v = "D"} },
         { "records",     L"t",         flagas,         {.v = "*"} },
 };
