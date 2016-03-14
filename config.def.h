@@ -21,8 +21,8 @@ static Key keys[] = {
         { "databases",   L"q",         quit,           {.i = 0} },
         { "databases",   L"ENTER",     tables,         {0} },
         { "databases",   L"SPACE",     tables,         {0} },
-        { "tables",      L"ENTER",     records,        {0} },
-        { "tables",      L"SPACE",     records,        {0} },
+        { "tables",      L"ENTER",     records,        {.i = 500} },
+        { "tables",      L"SPACE",     records,        {.i = 500} },
         { "records",     L"d",         flagas,         {.v = "D"} },
         { "records",     L"t",         flagas,         {.v = "*"} },
 };

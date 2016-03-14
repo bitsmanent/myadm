@@ -78,7 +78,7 @@ void apply(const Arg *arg);
 void attach(View *v);
 void attachfieldto(Field *f, Field **ff);
 void attachitemto(Item *i, Item **ii);
-char choose(const char *msg, char *opts);
+char ask(const char *msg, char *opts);
 void cleanup(void);
 void cleanupfields(Field **fields);
 void cleanupitems(Item **items);
@@ -130,7 +130,7 @@ apply(const Arg *arg) {
 	/* XXX if no pending changes, notice and returns */
 	if(arg->i) {
 		char *opts = "yn";
-		if(choose("Apply changes ([y]/n)?", opts) != opts[0])
+		if(ask("Apply changes ([y]/n)?", opts) != opts[0])
 			return;
 	}
 	/* XXX ... */
@@ -166,7 +166,7 @@ attachitemto(Item *i, Item **ii) {
 }
 
 char
-choose(const char *msg, char *opts) {
+ask(const char *msg, char *opts) {
 	char *o, c;
 
 	stfl_setf("status", msg);
@@ -257,8 +257,8 @@ cloneitem(Item *item) {
 
 void
 databases(const Arg *arg) {
-	MYSQL_RES *res;
 	int refresh = (selview && !strcmp(selview->mode->name, "databases"));
+	MYSQL_RES *res;
 
 	if(!(res = mysql_exec("show databases")))
 		die("databases\n");
@@ -543,7 +543,7 @@ void
 quit(const Arg *arg) {
 	if(arg->i) {
 		char *opts = "yn";
-		if(choose("Do you want to quit ([y]/n)?", opts) != opts[0])
+		if(ask("Do you want to quit ([y]/n)?", opts) != opts[0])
 			return;
 	}
 	running = 0;
