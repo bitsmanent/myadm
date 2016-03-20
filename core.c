@@ -359,12 +359,11 @@ void
 help(const Arg *arg) {
 	int refresh = (selview && !strcmp(selview->mode->name, "help"));
 
-	if(!refresh) {
+	if(!refresh)
 		selview = newaview("help", help);
-		selview->form = stfl_create(L"<help.stfl>");
-	}
 	else
-		stfl_setf("status", "Text updated.");
+		stfl_free(selview->form);
+	selview->form = stfl_create(L"<help.stfl>");
 }
 
 void
