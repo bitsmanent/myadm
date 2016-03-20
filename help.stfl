@@ -7,7 +7,7 @@ vbox[main]
 
   label
     @style_normal:fg=black,bg=white
-    text[title]:"The mutt of MySQL - Work in progress..."
+    text[title]:"Commands overview"
     .expand:0
   label
     @style_normal:fg=blue,bg=black,attr=bold
