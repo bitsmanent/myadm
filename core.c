@@ -112,7 +112,6 @@ void stfl_setf(const char *name, const char *fmtstr, ...);
 void stfl_putitem(Item *item, int *lens);
 int stripesc(char *src, char *dst, int len);
 void tables(const Arg *arg);
-void text(const Arg *arg);
 void viewprev(const Arg *arg);
 
 #include "config.h"
@@ -711,11 +710,6 @@ tables(const Arg *arg) {
 	mysql_free_result(res);
 	stfl_setf("title", "Tables in `%s`", choice->cols[0]);
 	stfl_setf("info", "%d table(s)", selview->nitems);
-}
-
-void
-text(const Arg *arg) {
-	stfl_setf("status", "I don't know how to refresh the content.");
 }
 
 void
