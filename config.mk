@@ -1,4 +1,4 @@
-# myadm - MySQL admin
+# myadm - mysql admin
 VERSION = 0.1
 
 # Customize below to fit your system

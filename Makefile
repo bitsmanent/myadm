@@ -1,4 +1,4 @@
-# myadm - MySQL admin
+# myadm - mysql admin
 # See LICENSE file for copyright and license details.
 
 include config.mk

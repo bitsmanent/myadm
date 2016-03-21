@@ -1,0 +1,31 @@
+myadm - mysql admin
+===================
+myadm is an simple, small, and mutt-like MySQL TUI.
+
+
+Requirements
+------------
+In order to build myadm you need the STFL and libmysqlclient header files.
+
+
+Installation
+------------
+Edit config.mk to match your local setup (myadm is installed into the
+/usr/local namespace by default).
+
+Afterwards enter the following command to build and install myadm (if necessary
+as root):
+
+    make clean install
+
+
+Running myadm
+-------------
+Open a terminal and type the following:
+
+	myadm
+
+Configuration
+-------------
+The configuration of myadm is done by creating a custom config.h
+and (re)compiling the source code.
