@@ -55,7 +55,7 @@ struct Field {
 
 typedef struct {
 	const char *mode;
-	const wchar_t *modkey;
+	const char *modkey;
 	void (*func)(const Arg *);
 	const Arg arg;
 } Key;
@@ -543,11 +543,11 @@ stfl_showitems(Item *items, int *lens) {
  *  0 never ask */
 void
 quit(const Arg *arg) {
-	if(arg->i) {
-		char *opts = "yn";
+	char *opts = "yn";
+
+	if(arg->i)
 		if(ask("Do you want to quit ([y]/n)?", opts) != opts[0])
 			return;
-	}
 	running = 0;
 }
 
@@ -599,7 +599,7 @@ run(void) {
 		k = NULL;
 		for(i = 0; i < LENGTH(keys); ++i)
 			if(!((keys[i].mode && strcmp(selview->mode->name, keys[i].mode))
-			|| wcscmp(ev, keys[i].modkey)))
+			|| strcmp(stfl_ipool_fromwc(ipool, ev), keys[i].modkey)))
 				k = &keys[i];
 		if(k)
 			k->func(&k->arg);
