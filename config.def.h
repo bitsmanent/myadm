@@ -11,7 +11,7 @@ static void (*welcome)(const Arg *arg) = databases;
 
 static Key keys[] = {
 	/* mode          modkey        function        argument */
-        { NULL,          "Q",          quit,           {.i = 1} },
+        { NULL,          "Q",          quit,           {.i = 0} },
         { NULL,          "q",          viewprev,       {0} },
         { NULL,          "k",          itempos,        {.i = -1} },
         { NULL,          "j",          itempos,        {.i = +1} },
