@@ -80,8 +80,8 @@ struct View {
 /* function declarations */
 void apply(const Arg *arg);
 void attach(View *v);
-void attachfieldto(Field *f, Field **ff);
-void attachitemto(Item *i, Item **ii);
+void attachfield(Field *f, Field **ff);
+void attachitem(Item *i, Item **ii);
 char ask(const char *msg, char *opts);
 void cleanup(void);
 void cleanupfields(Field **fields);
@@ -90,8 +90,8 @@ void cleanupview(View *v);
 Item *cloneitem(Item *item);
 void databases(const Arg *arg);
 void detach(View *v);
-void detachfieldfrom(Field *f, Field **ff);
-void detachitemfrom(Item *i, Item **ii);
+void detachfield(Field *f, Field **ff);
+void detachitem(Item *i, Item **ii);
 void die(const char *errstr, ...);
 void *ecalloc(size_t nmemb, size_t size);
 void flagas(const Arg *arg);
@@ -147,7 +147,7 @@ attach(View *v) {
 }
 
 void
-attachfieldto(Field *f, Field **ff) {
+attachfield(Field *f, Field **ff) {
 	Field **l;
 
 	for(l = ff; *l && (*l)->next; l = &(*l)->next);
@@ -158,7 +158,7 @@ attachfieldto(Field *f, Field **ff) {
 }
 
 void
-attachitemto(Item *i, Item **ii) {
+attachitem(Item *i, Item **ii) {
 	Item **l;
 
 	for(l = ii; *l && (*l)->next; l = &(*l)->next);
@@ -216,7 +216,7 @@ cleanupfields(Field **fields) {
 
 	while(*fields) {
 		f = *fields;
-		detachfieldfrom(f, fields);
+		detachfield(f, fields);
 		free(f);
 	}
 }
@@ -227,7 +227,7 @@ cleanupitems(Item **items) {
 
 	while(*items) {
 		i = *items;
-		detachitemfrom(i, items);
+		detachitem(i, items);
 		while(--i->ncols >= 0)
 			free(i->cols[i->ncols]);
 		free(i->lens);
@@ -282,7 +282,7 @@ detach(View *v) {
 }
 
 void
-detachfieldfrom(Field *f, Field **ff) {
+detachfield(Field *f, Field **ff) {
 	Field **tf;
 
 	for(tf = &(*ff); *tf && *tf != f; tf = &(*tf)->next);
@@ -290,7 +290,7 @@ detachfieldfrom(Field *f, Field **ff) {
 }
 
 void
-detachitemfrom(Item *i, Item **ii) {
+detachitem(Item *i, Item **ii) {
 	Item **ti;
 
 	for(ti = &(*ii); *ti && *ti != i; ti = &(*ti)->next);
@@ -422,7 +422,7 @@ mysql_fields(MYSQL_RES *res, Field **fields) {
 		field = ecalloc(1, sizeof(Field));
 		field->len = fds[i].name_length;
 		memcpy(field->name, fds[i].name, field->len);
-		attachfieldto(field, fields);
+		attachfield(field, fields);
 	}
 	return nfds;
 }
@@ -449,7 +449,7 @@ mysql_items(MYSQL_RES *res, Item **items) {
 			memcpy(item->cols[i], row[i], lens[i]);
 			item->lens[i] = lens[i];
 		}
-		attachitemto(item, items);
+		attachitem(item, items);
 	}
 	return nrows;
 }
