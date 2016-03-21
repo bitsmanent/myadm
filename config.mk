@@ -1,4 +1,4 @@
-# core - ???
+# myadm - ???
 VERSION = 0.1
 
 # Customize below to fit your system

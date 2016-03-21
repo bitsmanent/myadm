@@ -1,10 +1,14 @@
 /* See LICENSE file for copyright and license details.
  *
- * An experiment which is working surprisingly well.
+ * myadm is a text-based TUI for MySQL. It emulates the mutt interface through
+ * the STFL library and talk with the SQL server using libmysqlclient.
  *
- * Relevant docs:
- * http://svn.clifford.at/stfl/trunk/README
- * http://www.chiark.greenend.org.uk/~sgtatham/algorithms/listsort.html
+ * Each piece of information displayed is called an item. Items are organized
+ * in a linked items list on each view. A view contains an STFL form where all
+ * graphical elements are drawn along with all related informations. Each item
+ * contains a bit array to indicate tags of an item.
+ *
+ * To understand everything else, start reading main().
 */
 
 #include <stdio.h>
