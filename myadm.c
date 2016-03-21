@@ -21,7 +21,7 @@
 #include <stfl.h>
 #include <langinfo.h>
 #include <locale.h>
-#include <curses.h> /* For curs_set() */
+#include <curses.h>
 
 #include "arg.h"
 char *argv0;
@@ -47,7 +47,7 @@ struct Item {
 
 typedef struct Field Field;
 struct Field {
-	char name[64]; /* MySQL max field name is 64 bytes */
+	char name[64];
 	int len;
 	Field *next;
 };
@@ -154,7 +154,8 @@ attachitem(Item *i, Item **ii) {
 
 char
 ask(const char *msg, char *opts) {
-	char *o, c;
+	int c;
+	char *o;
 
 	stfl_setf("status", msg);
 	stfl_run(selview->form, -1);
@@ -587,7 +588,6 @@ setup(void) {
 
 	fldseplen = strlen(FLDSEP);
 	ipool = stfl_ipool_create(nl_langinfo(CODESET));
-
 	welcome(NULL);
 	stfl_run(selview->form, -1);
 	nl();
