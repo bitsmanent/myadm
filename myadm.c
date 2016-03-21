@@ -42,7 +42,6 @@ struct Item {
 	char **cols;
 	int *lens;
 	int ncols;
-	unsigned int flags;
 	Item *next;
 };
 
@@ -55,7 +54,7 @@ struct Field {
 
 typedef struct {
 	const char *mode;
-	const char *modkey;
+	const int modkey;
 	void (*func)(const Arg *);
 	const Arg arg;
 } Key;
@@ -78,7 +77,6 @@ struct View {
 };
 
 /* function declarations */
-void apply(const Arg *arg);
 void attach(View *v);
 void attachfield(Field *f, Field **ff);
 void attachitem(Item *i, Item **ii);
@@ -94,10 +92,8 @@ void detachfield(Field *f, Field **ff);
 void detachitem(Item *i, Item **ii);
 void die(const char *errstr, ...);
 void *ecalloc(size_t nmemb, size_t size);
-void flagas(const Arg *arg);
 Item *getitem(void);
 int *getmaxlengths(View *view);
-void help(const Arg *arg);
 void itempos(const Arg *arg);
 MYSQL_RES *mysql_exec(const char *sqlstr, ...);
 int mysql_fields(MYSQL_RES *res, Field **fields);
@@ -111,7 +107,7 @@ void records(const Arg *arg);
 void reload(const Arg *arg);
 void run(void);
 void setup(void);
-void sigint_handler(int sig);
+void sigint_handler(int unused);
 void stfl_setf(const char *name, const char *fmtstr, ...);
 void stfl_putitem(Item *item, int *lens);
 int stripesc(char *src, char *dst, int len);
@@ -128,18 +124,6 @@ static struct stfl_ipool *ipool;
 static int fldseplen;
 
 /* function implementations */
-void
-apply(const Arg *arg) {
-	/* XXX if no pending changes, notice and returns */
-	if(arg->i) {
-		char *opts = "yn";
-		if(ask("Apply changes ([y]/n)?", opts) != opts[0])
-			return;
-	}
-	/* XXX ... */
-	stfl_setf("status", "Changes applied.");
-}
-
 void
 attach(View *v) {
 	v->next = views;
@@ -174,8 +158,8 @@ ask(const char *msg, char *opts) {
 
 	stfl_setf("status", msg);
 	stfl_run(selview->form, -1);
-	while((c = getchar())) {
-		if(c == '\r') {
+	while((c = getch())) {
+		if(c == '\n') {
 			o = &opts[0];
 			break;
 		}
@@ -249,7 +233,6 @@ cloneitem(Item *item) {
 	ic->cols = ecalloc(nfds, sizeof(char *));
 	ic->lens = ecalloc(nfds, sizeof(int));
 	ic->ncols = nfds;
-	ic->flags = item->flags;
 	for(i = 0; i < nfds; ++i) {
 		ic->cols[i] = ecalloc(item->lens[i], sizeof(char));
 		ic->lens[i] = item->lens[i];
@@ -316,10 +299,6 @@ ecalloc(size_t nmemb, size_t size) {
 	return p;
 }
 
-void
-flagas(const Arg *arg) {
-}
-
 Item *
 getitem(void) {
 	const char *spos = stfl_ipool_fromwc(ipool, stfl_get(selview->form, L"pos"));
@@ -357,17 +336,6 @@ getmaxlengths(View *view) {
 			if(lens[i] < item->lens[i])
 				lens[i] = (item->lens[i] <= MAXCOLSZ ? item->lens[i] : MAXCOLSZ);
 	return lens;
-}
-
-void
-help(const Arg *arg) {
-	int refresh = (selview && !strcmp(selview->mode->name, "help"));
-
-	if(!refresh)
-		selview = newaview("help", help);
-	else
-		stfl_free(selview->form);
-	selview->form = stfl_create(L"<help.stfl>");
 }
 
 void
@@ -589,20 +557,23 @@ reload(const Arg *arg) {
 void
 run(void) {
 	Key *k;
-	const wchar_t *ev;
 	unsigned int i;
+	int code;
 
 	while(running) {
-		if(!(ev = stfl_run(selview->form, 0)))
+		code = getch();
+		if(code < 0)
 			continue;
-		stfl_setf("status", "");
 		k = NULL;
 		for(i = 0; i < LENGTH(keys); ++i)
-			if(!((keys[i].mode && strcmp(selview->mode->name, keys[i].mode))
-			|| strcmp(stfl_ipool_fromwc(ipool, ev), keys[i].modkey)))
+			if(!(keys[i].mode && strcmp(selview->mode->name, keys[i].mode))
+			&& keys[i].modkey == code)
 				k = &keys[i];
-		if(k)
+		if(k) {
+			stfl_setf("status", "");
 			k->func(&k->arg);
+		}
+		stfl_run(selview->form, -1);
 	}
 }
 
@@ -616,8 +587,10 @@ setup(void) {
 
 	fldseplen = strlen(FLDSEP);
 	ipool = stfl_ipool_create(nl_langinfo(CODESET));
+
 	welcome(NULL);
-	stfl_setf("status", "Welcome to %s-%s", __FILE__, VERSION);
+	stfl_run(selview->form, -1);
+	nl();
 
 	sa.sa_flags = 0;
 	sigemptyset(&sa.sa_mask);
@@ -626,7 +599,7 @@ setup(void) {
 }
 
 void
-sigint_handler(int sig) {
+sigint_handler(int unused) {
 	Arg arg = {.i = 1};
 	quit(&arg);
 }

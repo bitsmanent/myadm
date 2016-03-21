@@ -9,20 +9,26 @@ static const char *dbpass = "";
 
 static void (*welcome)(const Arg *arg) = databases;
 
+#if defined CTRL && defined _AIX
+  #undef CTRL
+#endif
+#ifndef CTRL
+  #define CTRL(k)   ((k) & 0x1F)
+#endif
+#define CTRL_ALT(k) ((k) + (129 - 'a'))
+
 static Key keys[] = {
-	/* mode          modkey        function        argument */
-        { NULL,          "Q",          quit,           {.i = 0} },
-        { NULL,          "q",          viewprev,       {0} },
-        { NULL,          "k",          itempos,        {.i = -1} },
-        { NULL,          "j",          itempos,        {.i = +1} },
-        { NULL,          "I",          reload,         {0} },
-        { NULL,          "$",          apply,          {.i = 1} },
-        { NULL,          "?",          help,           {0} },
-        { "databases",   "q",          quit,           {.i = 0} },
-        { "databases",   "ENTER",      tables,         {0} },
-        { "databases",   "SPACE",      tables,         {0} },
-        { "tables",      "ENTER",      records,        {.i = 500} },
-        { "tables",      "SPACE",      records,        {.i = 500} },
-        { "records",     "d",          flagas,         {.v = "D"} },
-        { "records",     "t",          flagas,         {.v = "*"} },
+	/* mode          key           function        argument */
+        { NULL,          'Q',          quit,           {.i = 1} },
+        { NULL,          'q',          viewprev,       {0} },
+        { NULL,          'k',          itempos,        {.i = -1} },
+        { NULL,          KEY_UP,       itempos,        {.i = -1} },
+        { NULL,          'j',          itempos,        {.i = +1} },
+        { NULL,          KEY_DOWN,     itempos,        {.i = +1} },
+        { NULL,          'I',          reload,         {0} },
+        { "databases",   'q',          quit,           {.i = 0} },
+        { "databases",   '\n',         tables,         {0} },
+        { "databases",   ' ',          tables,         {0} },
+        { "tables",      '\n',         records,        {.i = 500} },
+        { "tables",      ' ',          records,        {.i = 500} },
 };
