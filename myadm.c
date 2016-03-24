@@ -29,6 +29,7 @@ char *argv0;
 #define LENGTH(X)               (sizeof X / sizeof X[0])
 #define QUOTE(S)		(stfl_ipool_fromwc(ipool, stfl_quote(stfl_ipool_towc(ipool, S))))
 #define LINESIZE(N)		(MAXCOLSZ * (N) + fldseplen * ((N) - 1) + 1);
+#define REFRESH(M)		(selview && !strcmp(selview->mode->name, M))
 
 typedef union {
 	int i;
@@ -244,10 +245,9 @@ cloneitem(Item *item) {
 
 void
 databases(const Arg *arg) {
-	int refresh = (selview && !strcmp(selview->mode->name, "databases"));
 	MYSQL_RES *res;
 
-	if(!refresh) {
+	if(!REFRESH("databases")) {
 		selview = newaview("databases", databases);
 		selview->form = stfl_create(L"<items.stfl>");
 		stfl_run(selview->form, -1); /* refresh ncurses */
@@ -517,24 +517,23 @@ quit(const Arg *arg) {
 
 void
 records(const Arg *arg) {
-	int refresh = (selview && !strcmp(selview->mode->name, "records"));
-	Item *choice = (refresh ? selview->choice : cloneitem(stfl_choice()));
+	Item *choice;
 	MYSQL_RES *res;
 	char *tbl;
 
-	if(!refresh) {
+	if(!REFRESH("records")) {
+		choice = cloneitem(stfl_choice());
 		selview = newaview("records", records);
 		selview->choice = choice;
-
 		selview->form = stfl_create(L"<items.stfl>");
 		stfl_run(selview->form, -1); /* refresh ncurses */
 		curs_set(0);
 	}
-	if(!choice->ncols)
+	if(!selview->choice->ncols)
 		die("records: no choice.\n");
 
-	tbl = calloc(choice->lens[0] + 1, sizeof(char));
-	memcpy(tbl, choice->cols[0], choice->lens[0]);
+	tbl = calloc(selview->choice->lens[0] + 1, sizeof(char));
+	memcpy(tbl, selview->choice->cols[0], selview->choice->lens[0]);
 
 	if(!(res = mysql_exec("select * from `%s`", tbl)))
 		die("records: cannot select `%s`\n", tbl);
@@ -667,14 +666,14 @@ usage(void) {
 
 void
 tables(const Arg *arg) {
-	int refresh = (selview && !strcmp(selview->mode->name, "tables"));
-	Item *choice = (refresh ? selview->choice : cloneitem(stfl_choice()));
+	Item *choice;
 	MYSQL_RES *res;
 
-	if(!refresh) {
+	if(!REFRESH("tables")) {
+		choice = cloneitem(stfl_choice());
 		selview = newaview("tables", tables);
 		selview->choice = choice;
-		mysql_select_db(mysql, choice->cols[0]);
+		mysql_select_db(mysql, selview->choice->cols[0]);
 		selview->form = stfl_create(L"<items.stfl>");
 		stfl_run(selview->form, -1); /* refresh ncurses */
 		curs_set(0);
@@ -684,7 +683,7 @@ tables(const Arg *arg) {
 	mysql_fillview(res, 0);
 	mysql_free_result(res);
 	stfl_listview(selview->items, NULL, selview->form);
-	stfl_setf("title", "Tables in `%s`", choice->cols[0]);
+	stfl_setf("title", "Tables in `%s`", selview->choice->cols[0]);
 	stfl_setf("info", "%d table(s)", selview->nitems);
 }
 
