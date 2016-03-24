@@ -385,9 +385,10 @@ void
 mysql_fillview(MYSQL_RES *res, int showfds) {
 	cleanupitems(&selview->items);
 	selview->nitems = mysql_items(res, &selview->items);
-	if(showfds)
+	if(showfds) {
 		cleanupfields(&selview->fields);
 		selview->nfields = mysql_fields(res, &selview->fields);
+	}
 }
 
 int
