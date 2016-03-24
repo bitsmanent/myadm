@@ -517,22 +517,19 @@ quit(const Arg *arg) {
 
 void
 records(const Arg *arg) {
-	Item *choice;
 	MYSQL_RES *res;
+	View *v;
 	char *tbl;
 
 	if(!REFRESH("records")) {
-		choice = cloneitem(getitem(0));
-		selview = newaview("records", records);
-		selview->choice = choice;
-		selview->form = stfl_form(L"<items.stfl>");
+		v = newaview("records", records);
+		v->choice = cloneitem(getitem(0));
+		v->form = stfl_form(L"<items.stfl>");
+		selview = v;
 	}
 	if(!selview->choice->ncols)
 		die("records: no choice.\n");
-
-	tbl = calloc(selview->choice->lens[0] + 1, sizeof(char));
-	memcpy(tbl, selview->choice->cols[0], selview->choice->lens[0]);
-
+	tbl = selview->choice->cols[0];
 	if(!(res = mysql_exec("select * from `%s`", tbl)))
 		die("records: cannot select `%s`\n", tbl);
 	mysql_fillview(res, 1);
@@ -540,17 +537,19 @@ records(const Arg *arg) {
 	stfl_listview(selview->items, selview->fields, selview->form);
 	stfl_setf("title", "Records in `%s`", tbl);
 	stfl_setf("info", "---Core: %d record(s)", selview->nitems);
-	free(tbl);
 }
 
 void
 reload(const Arg *arg) {
-	const wchar_t *pos = stfl_get(selview->form, L"pos");
+	char tmp[8];
+
 	if(!selview->mode->func)
 		return;
 	selview->mode->func(NULL);
-	if(pos)
-		stfl_set(selview->form, L"pos", pos);
+	if(selview->cur) {
+		snprintf(tmp, sizeof tmp, "%d", selview->cur);
+		stfl_set(selview->form, L"pos", stfl_ipool_towc(ipool, tmp));
+	}
 }
 
 void
@@ -674,15 +673,15 @@ usage(void) {
 
 void
 tables(const Arg *arg) {
-	Item *choice;
 	MYSQL_RES *res;
+	View *v;
 
 	if(!REFRESH("tables")) {
-		choice = cloneitem(getitem(0));
-		selview = newaview("tables", tables);
-		selview->choice = choice;
-		selview->form = stfl_form(L"<items.stfl>");
-		mysql_select_db(mysql, selview->choice->cols[0]);
+		v = newaview("tables", tables);
+		v->choice = cloneitem(getitem(0));
+		v->form = stfl_form(L"<items.stfl>");
+		mysql_select_db(mysql, v->choice->cols[0]);
+		selview = v;
 	}
 	if(!(res = mysql_exec("show tables")))
 		die("tables\n");
