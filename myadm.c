@@ -637,6 +637,8 @@ viewdb(const Arg *arg) {
 
 	v = newaview("tables", viewdb_show);
 	v->choice = cloneitem(getitem(0));
+	if(!(v->choice && v->choice->ncols))
+		die("No database selected.\n");
 	v->form = stfl_form(L"<items.stfl>");
 	mysql_select_db(mysql, v->choice->cols[0]);
 	selview = v;
@@ -690,19 +692,12 @@ viewprev(const Arg *arg) {
 void
 viewtable(const Arg *arg) {
 	View *v;
-	Item *c;
-
-	c = cloneitem(getitem(0));
-	if(!c) {
-		stfl_setf("status", "No table selected.");
-		return;
-	}
 
 	v = newaview("records", viewtable_show);
-	v->choice = c;
+	v->choice = cloneitem(getitem(0));
+	if(!(v->choice && v->choice->ncols))
+		die("No table selected.\n");
 	v->form = stfl_form(L"<items.stfl>");
-	if(!v->choice->ncols)
-		die("records: no choice.\n");
 	selview = v;
 	viewtable_show();
 }
