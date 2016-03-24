@@ -71,6 +71,7 @@ struct View {
 	Item *items;
 	Item *choice;
 	Field *fields;
+	int cur;
 	int nitems;
 	int nfields;
 	struct stfl_form *form;
@@ -329,19 +330,17 @@ getmaxlengths(Item *items, Field *fields) {
 
 void
 itemsel(const Arg *arg) {
-	const char *spos = stfl_ipool_fromwc(ipool, stfl_get(selview->form, L"pos"));
+	int pos = selview->cur;
 	char tmp[8];
-	int pos;
 
-	if(!spos)
-		return;
-	pos = atoi(spos) + arg->i;
+	pos += arg->i;
 	if(pos < 0)
 		pos = 0;
 	else if(pos >= selview->nitems)
 		pos = selview->nitems - 1;
 	snprintf(tmp, sizeof tmp, "%d", pos);
 	stfl_set(selview->form, L"pos", stfl_ipool_towc(ipool, tmp));
+	selview->cur = pos;
 }
 
 MYSQL_RES *
