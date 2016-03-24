@@ -25,8 +25,8 @@ static Key keys[] = {
         { NULL,          KEY_DOWN,     itemsel,        {.i = +1} },
         { NULL,          'I',          reload,         {0} },
         { "databases",   'q',          quit,           {.i = 0} },
-        { "databases",   '\n',         tables,         {0} },
-        { "databases",   ' ',          tables,         {0} },
-        { "tables",      '\n',         records,        {0} },
-        { "tables",      ' ',          records,        {0} },
+        { "databases",   '\n',         viewdb,         {0} },
+        { "databases",   ' ',          viewdb,         {0} },
+        { "tables",      '\n',         viewtable,      {0} },
+        { "tables",      ' ',          viewtable,      {0} },
 };
