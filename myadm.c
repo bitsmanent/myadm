@@ -102,17 +102,19 @@ int mysql_fields(MYSQL_RES *res, Field **fields);
 void mysql_fillview(MYSQL_RES *res, int showfds);
 int mysql_items(MYSQL_RES *res, Item **items);
 View *newaview(const char *name, void (*func)(const Arg *arg));
-void stfl_listview(Item *items, Field *fields, struct stfl_form *form);
-void stfl_showfields(Field *fds, int *lens);
-void stfl_showitems(Item *items, int *lens);
+struct stfl_form *stfl_form(wchar_t *code);
 void quit(const Arg *arg);
 void records(const Arg *arg);
 void reload(const Arg *arg);
 void run(void);
 void setup(void);
 void sigint_handler(int unused);
-void stfl_setf(const char *name, const char *fmtstr, ...);
+struct stfl_form *stfl_form(wchar_t *code);
+void stfl_listview(Item *items, Field *fields, struct stfl_form *form);
 void stfl_putitem(Item *item, int *lens);
+void stfl_setf(const char *name, const char *fmtstr, ...);
+void stfl_showfields(Field *fds, int *lens);
+void stfl_showitems(Item *items, int *lens);
 int stripesc(char *src, char *dst, int len);
 void tables(const Arg *arg);
 void viewprev(const Arg *arg);
@@ -250,9 +252,7 @@ databases(const Arg *arg) {
 
 	if(!REFRESH("databases")) {
 		selview = newaview("databases", databases);
-		selview->form = stfl_create(L"<items.stfl>");
-		stfl_run(selview->form, -1); /* refresh ncurses */
-		curs_set(0);
+		selview->form = stfl_form(L"<items.stfl>");
 	}
 	if(!(res = mysql_exec("show databases")))
 		die("databases\n");
@@ -525,9 +525,7 @@ records(const Arg *arg) {
 		choice = cloneitem(getitem(0));
 		selview = newaview("records", records);
 		selview->choice = choice;
-		selview->form = stfl_create(L"<items.stfl>");
-		stfl_run(selview->form, -1); /* refresh ncurses */
-		curs_set(0);
+		selview->form = stfl_form(L"<items.stfl>");
 	}
 	if(!selview->choice->ncols)
 		die("records: no choice.\n");
@@ -602,6 +600,16 @@ sigint_handler(int unused) {
 	quit(&arg);
 }
 
+struct stfl_form *
+stfl_form(wchar_t *code) {
+	struct stfl_form *f;
+
+	f = stfl_create(code);
+	stfl_run(f, -1); /* refresh ncurses */
+	curs_set(0);
+	return f;
+}
+
 void
 stfl_setf(const char *name, const char *fmtstr, ...) {
 	va_list ap;
@@ -673,10 +681,8 @@ tables(const Arg *arg) {
 		choice = cloneitem(getitem(0));
 		selview = newaview("tables", tables);
 		selview->choice = choice;
+		selview->form = stfl_form(L"<items.stfl>");
 		mysql_select_db(mysql, selview->choice->cols[0]);
-		selview->form = stfl_create(L"<items.stfl>");
-		stfl_run(selview->form, -1); /* refresh ncurses */
-		curs_set(0);
 	}
 	if(!(res = mysql_exec("show tables")))
 		die("tables\n");
