@@ -7,8 +7,6 @@ static const char *dbhost = "";
 static const char *dbuser = "";
 static const char *dbpass = "";
 
-static void (*welcome)(const Arg *arg) = databases;
-
 #if defined CTRL && defined _AIX
   #undef CTRL
 #endif

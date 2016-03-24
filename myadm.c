@@ -584,7 +584,7 @@ setup(void) {
 		die("Cannot connect to the database.\n");
 	fldseplen = strlen(FLDSEP);
 	ipool = stfl_ipool_create(nl_langinfo(CODESET));
-	welcome(NULL);
+	databases(NULL);
 	stfl_run(selview->form, -1);
 	nl();
 	sa.sa_flags = 0;
