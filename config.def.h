@@ -29,6 +29,6 @@ static Key keys[] = {
         { "databases",   'q',          quit,           {.i = 0} },
         { "databases",   '\n',         tables,         {0} },
         { "databases",   ' ',          tables,         {0} },
-        { "tables",      '\n',         records,        {.i = 500} },
-        { "tables",      ' ',          records,        {.i = 500} },
+        { "tables",      '\n',         records,        {0} },
+        { "tables",      ' ',          records,        {0} },
 };
