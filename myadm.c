@@ -29,7 +29,7 @@ char *argv0;
 #define LENGTH(X)               (sizeof X / sizeof X[0])
 #define QUOTE(S)		(stfl_ipool_fromwc(ipool, stfl_quote(stfl_ipool_towc(ipool, S))))
 #define LINESIZE(N)		(MAXCOLSZ * (N) + fldseplen * ((N) - 1) + 1);
-#define REFRESH(M)		(selview && !strcmp(selview->mode->name, M))
+#define ISRELOAD(M)		(selview && !strcmp(selview->mode->name, M))
 
 typedef union {
 	int i;
@@ -250,7 +250,7 @@ void
 databases(const Arg *arg) {
 	MYSQL_RES *res;
 
-	if(!REFRESH("databases")) {
+	if(!ISRELOAD("databases")) {
 		selview = newaview("databases", databases);
 		selview->form = stfl_form(L"<items.stfl>");
 	}
@@ -521,7 +521,7 @@ records(const Arg *arg) {
 	View *v;
 	char *tbl;
 
-	if(!REFRESH("records")) {
+	if(!ISRELOAD("records")) {
 		v = newaview("records", records);
 		v->choice = cloneitem(getitem(0));
 		v->form = stfl_form(L"<items.stfl>");
@@ -676,7 +676,7 @@ tables(const Arg *arg) {
 	MYSQL_RES *res;
 	View *v;
 
-	if(!REFRESH("tables")) {
+	if(!ISRELOAD("tables")) {
 		v = newaview("tables", tables);
 		v->choice = cloneitem(getitem(0));
 		v->form = stfl_form(L"<items.stfl>");
