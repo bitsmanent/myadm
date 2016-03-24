@@ -93,13 +93,13 @@ void detachitem(Item *i, Item **ii);
 void die(const char *errstr, ...);
 void *ecalloc(size_t nmemb, size_t size);
 Item *getitem(void);
-int *getmaxlengths(View *view);
+int *getmaxlengths(Item *items, Field *fields);
 void itempos(const Arg *arg);
 MYSQL_RES *mysql_exec(const char *sqlstr, ...);
 int mysql_fields(MYSQL_RES *res, Field **fields);
 int mysql_items(MYSQL_RES *res, Item **items);
-void mysql_listview(MYSQL_RES *res, int showfds);
 View *newaview(const char *name, void (*func)(const Arg *arg));
+void stfl_listview(Item *items, Field *fields, struct stfl_form *form);
 void stfl_showfields(Field *fds, int *lens);
 void stfl_showitems(Item *items, int *lens);
 void quit(const Arg *arg);
@@ -224,17 +224,16 @@ cleanupitems(Item **items) {
 Item *
 cloneitem(Item *item) {
 	Item *ic;
-	int i, nfds;
+	int i;
 
 	if(!item)
 		return NULL;
 
-	nfds = item->ncols;
 	ic = ecalloc(1, sizeof(Item));
-	ic->cols = ecalloc(nfds, sizeof(char *));
-	ic->lens = ecalloc(nfds, sizeof(int));
-	ic->ncols = nfds;
-	for(i = 0; i < nfds; ++i) {
+	ic->cols = ecalloc(item->ncols, sizeof(char *));
+	ic->lens = ecalloc(item->ncols, sizeof(int));
+	ic->ncols = item->ncols;
+	for(i = 0; i < item->ncols; ++i) {
 		ic->cols[i] = ecalloc(item->lens[i], sizeof(char));
 		ic->lens[i] = item->lens[i];
 		memcpy(ic->cols[i], item->cols[i], item->lens[i]);
@@ -247,12 +246,20 @@ databases(const Arg *arg) {
 	int refresh = (selview && !strcmp(selview->mode->name, "databases"));
 	MYSQL_RES *res;
 
+	if(!refresh) {
+		selview = newaview("databases", databases);
+		selview->form = stfl_create(L"<items.stfl>");
+		stfl_run(selview->form, -1); /* refresh ncurses */
+		curs_set(0);
+	}
+
 	if(!(res = mysql_exec("show databases")))
 		die("databases\n");
-	if(!refresh)
-		selview = newaview("databases", databases);
-	mysql_listview(res, 0);
+	cleanupitems(&selview->items);
+	selview->nitems = mysql_items(res, &selview->items);
 	mysql_free_result(res);
+
+	stfl_listview(selview->items, NULL, selview->form);
 	stfl_setf("title", "Databases in `%s`", dbhost);
 	stfl_setf("info", "%d DB(s)", selview->nitems);
 }
@@ -317,25 +324,25 @@ getitem(void) {
 }
 
 int *
-getmaxlengths(View *view) {
+getmaxlengths(Item *items, Field *fields) {
 	Item *item;
 	Field *fld;
 	int i, nfds, *lens;
 
-	if(view->nfields)
-		nfds = view->nfields;
-	else if(view->items)
-		nfds = view->items->ncols;
-	else
+	if(!(items || fields))
 		return NULL;
 
+	for(fld = fields, nfds = 0; fld; fld = fld->next, ++nfds);
+
 	lens = ecalloc(nfds, sizeof(int));
-	for(fld = view->fields, i = 0; fld; fld = fld->next, ++i)
-		lens[i] = (fld->len <= MAXCOLSZ ? fld->len : MAXCOLSZ);
-	for(item = view->items; item; item = item->next)
-		for(i = 0; i < item->ncols; ++i)
-			if(lens[i] < item->lens[i])
-				lens[i] = (item->lens[i] <= MAXCOLSZ ? item->lens[i] : MAXCOLSZ);
+	if(fields)
+		for(fld = fields, i = 0; fld; fld = fld->next, ++i)
+			lens[i] = (fld->len <= MAXCOLSZ ? fld->len : MAXCOLSZ);
+	if(items)
+		for(item = items; item; item = item->next)
+			for(i = 0; i < item->ncols; ++i)
+				if(lens[i] < item->lens[i])
+					lens[i] = (item->lens[i] <= MAXCOLSZ ? item->lens[i] : MAXCOLSZ);
 	return lens;
 }
 
@@ -424,29 +431,19 @@ mysql_items(MYSQL_RES *res, Item **items) {
 }
 
 void
-mysql_listview(MYSQL_RES *res, int showfds) {
+stfl_listview(Item *items, Field *fields, struct stfl_form *form) {
 	int *lens;
 
-	cleanupitems(&selview->items);
-	selview->nitems = mysql_items(res, &selview->items);
-
-	if(!selview->form) {
-		selview->form = stfl_create(L"<items.stfl>");
-		stfl_run(selview->form, -1); /* refresh ncurses */
+	if(!form) {
+		form = stfl_create(L"<items.stfl>");
+		stfl_run(form, -1); /* refresh ncurses */
 		curs_set(0);
 	}
 
-	if(showfds) {
-		cleanupfields(&selview->fields);
-		selview->nfields = mysql_fields(res, &selview->fields);
-		lens = getmaxlengths(selview);
-		stfl_showfields(selview->fields, lens);
-	}
-	else {
-		lens = getmaxlengths(selview);
-	}
-
-	stfl_showitems(selview->items, lens);
+	lens = getmaxlengths(items, fields);
+	if(fields)
+		stfl_showfields(fields, lens);
+	stfl_showitems(items, lens);
 	free(lens);
 }
 
@@ -527,19 +524,29 @@ records(const Arg *arg) {
 	MYSQL_RES *res;
 	char *tbl;
 
-	choice = (refresh ? selview->choice : cloneitem(getitem()));
+	if(!refresh) {
+		selview = newaview("records", records);
+		selview->choice = choice;
+
+		selview->form = stfl_create(L"<items.stfl>");
+		stfl_run(selview->form, -1); /* refresh ncurses */
+		curs_set(0);
+	}
+
 	if(!choice->ncols)
 		die("records: no choice.\n");
+
 	tbl = calloc(choice->lens[0] + 1, sizeof(char));
 	memcpy(tbl, choice->cols[0], choice->lens[0]);
 	if(!(res = mysql_exec("select * from `%s`", tbl)))
 		die("records: cannot select `%s`\n", tbl);
-	if(!refresh) {
-		selview = newaview("records", records);
-		selview->choice = choice;
-	}
-	mysql_listview(res, 1);
+	cleanupitems(&selview->items);
+	selview->nitems = mysql_items(res, &selview->items);
+	cleanupfields(&selview->fields);
+	selview->nfields = mysql_fields(res, &selview->fields);
 	mysql_free_result(res);
+
+	stfl_listview(selview->items, selview->fields, selview->form);
 	stfl_setf("title", "Records in `%s`", tbl);
 	stfl_setf("info", "---Core: %d record(s)", selview->nitems);
 	free(tbl);
@@ -679,11 +686,20 @@ tables(const Arg *arg) {
 		selview = newaview("tables", tables);
 		selview->choice = choice;
 		mysql_select_db(mysql, choice->cols[0]);
+
+		selview->form = stfl_create(L"<items.stfl>");
+		stfl_run(selview->form, -1); /* refresh ncurses */
+		curs_set(0);
 	}
+
 	if(!(res = mysql_exec("show tables")))
 		die("tables\n");
-	mysql_listview(res, 0);
+
+	cleanupitems(&selview->items);
+	selview->nitems = mysql_items(res, &selview->items);
 	mysql_free_result(res);
+
+	stfl_listview(selview->items, NULL, selview->form);
 	stfl_setf("title", "Tables in `%s`", choice->cols[0]);
 	stfl_setf("info", "%d table(s)", selview->nitems);
 }
