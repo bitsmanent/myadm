@@ -529,7 +529,8 @@ records(const Arg *arg) {
 	}
 	if(!selview->choice->ncols)
 		die("records: no choice.\n");
-	tbl = selview->choice->cols[0];
+	tbl = ecalloc(1 + selview->choice->lens[0], sizeof(char));
+	snprintf(tbl, 1 + selview->choice->lens[0], "%s", selview->choice->cols[0]);
 	if(!(res = mysql_exec("select * from `%s`", tbl)))
 		die("records: cannot select `%s`\n", tbl);
 	mysql_fillview(res, 1);
