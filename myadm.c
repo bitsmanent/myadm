@@ -94,6 +94,7 @@ void detachfield(Field *f, Field **ff);
 void detachitem(Item *i, Item **ii);
 void die(const char *errstr, ...);
 void *ecalloc(size_t nmemb, size_t size);
+Item *getitem(int pos);
 int *getmaxlengths(Item *items, Field *fields);
 void itemsel(const Arg *arg);
 MYSQL_RES *mysql_exec(const char *sqlstr, ...);
@@ -101,7 +102,6 @@ int mysql_fields(MYSQL_RES *res, Field **fields);
 void mysql_fillview(MYSQL_RES *res, int showfds);
 int mysql_items(MYSQL_RES *res, Item **items);
 View *newaview(const char *name, void (*func)(const Arg *arg));
-Item *stfl_choice(void);
 void stfl_listview(Item *items, Field *fields, struct stfl_form *form);
 void stfl_showfields(Field *fds, int *lens);
 void stfl_showitems(Item *items, int *lens);
@@ -306,6 +306,21 @@ ecalloc(size_t nmemb, size_t size) {
 	return p;
 }
 
+Item *
+getitem(int pos) {
+	Item *item;
+	int n;
+
+	if(!selview)
+		return NULL;
+	if(!pos)
+		pos = selview->cur;
+	for(item = selview->items, n = 0; item; item = item->next, ++n)
+		if(n == pos)
+			break;
+	return item;
+}
+
 int *
 getmaxlengths(Item *items, Field *fields) {
 	Item *item;
@@ -416,21 +431,6 @@ mysql_items(MYSQL_RES *res, Item **items) {
 	return nrows;
 }
 
-Item *
-stfl_choice(void) {
-	const char *spos = stfl_ipool_fromwc(ipool, stfl_get(selview->form, L"pos"));
-	Item *item;
-	int pos, n;
-
-	if(!(selview && spos))
-		return NULL;
-	pos = atoi(spos);
-	for(item = selview->items, n = 0; item; item = item->next, ++n)
-		if(n == pos)
-			break;
-	return item;
-}
-
 void
 stfl_listview(Item *items, Field *fields, struct stfl_form *form) {
 	int *lens;
@@ -522,7 +522,7 @@ records(const Arg *arg) {
 	char *tbl;
 
 	if(!REFRESH("records")) {
-		choice = cloneitem(stfl_choice());
+		choice = cloneitem(getitem(0));
 		selview = newaview("records", records);
 		selview->choice = choice;
 		selview->form = stfl_create(L"<items.stfl>");
@@ -670,7 +670,7 @@ tables(const Arg *arg) {
 	MYSQL_RES *res;
 
 	if(!REFRESH("tables")) {
-		choice = cloneitem(stfl_choice());
+		choice = cloneitem(getitem(0));
 		selview = newaview("tables", tables);
 		selview->choice = choice;
 		mysql_select_db(mysql, selview->choice->cols[0]);
