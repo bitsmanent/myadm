@@ -573,7 +573,7 @@ ui_getform(wchar_t *code) {
 void
 ui_modify(const char *name, const char *mode, const char *fmtstr, ...) {
 	va_list ap;
-	char txt[8192];
+	char txt[256];
 
 	if(!selview->form)
 		return;
