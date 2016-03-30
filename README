@@ -25,6 +25,7 @@ Open a terminal and type the following:
 
 	myadm
 
+
 Configuration
 -------------
 The configuration of myadm is done by creating a custom config.h

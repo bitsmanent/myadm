@@ -100,19 +100,19 @@ int mysql_fields(MYSQL_RES *res, Field **fields);
 void mysql_fillview(MYSQL_RES *res, int showfds);
 int mysql_items(MYSQL_RES *res, Item **items);
 View *newaview(const char *name, void (*func)(void));
-struct stfl_form *stfl_form(wchar_t *code);
 void quit(const Arg *arg);
 void reload(const Arg *arg);
 void run(void);
 void setup(void);
 void sigint_handler(int unused);
-struct stfl_form *stfl_form(wchar_t *code);
-void stfl_listview(Item *items, Field *fields, struct stfl_form *form);
-void stfl_putitem(Item *item, int *lens);
-void stfl_setf(const char *name, const char *fmtstr, ...);
-void stfl_showfields(Field *fds, int *lens);
-void stfl_showitems(Item *items, int *lens);
 int stripesc(char *src, char *dst, int len);
+void uiset(const char *key, const char *fmtstr, ...);
+struct stfl_form *ui_getform(wchar_t *code);
+void ui_listview(Item *items, Field *fields);
+void ui_putitem(Item *item, int *lens);
+void ui_showfields(Field *fds, int *lens);
+void ui_showitems(Item *items, int *lens);
+void usage(void);
 void viewdb(const Arg *arg);
 void viewdb_show(void);
 void viewdblist(const Arg *arg);
@@ -164,7 +164,7 @@ ask(const char *msg, char *opts) {
 	int c;
 	char *o;
 
-	stfl_setf("status", msg);
+	uiset("status", msg);
 	stfl_run(selview->form, -1);
 	while((c = getch())) {
 		if(c == '\n') {
@@ -177,7 +177,7 @@ ask(const char *msg, char *opts) {
 		if(*o)
 			break;
 	}
-	stfl_setf("status", "");
+	uiset("status", "");
 	return *o;
 }
 
@@ -339,7 +339,7 @@ itemsel(const Arg *arg) {
 	else if(pos >= selview->nitems)
 		pos = selview->nitems - 1;
 	snprintf(tmp, sizeof tmp, "%d", pos);
-	stfl_set(selview->form, L"pos", stfl_ipool_towc(ipool, tmp));
+	uiset("pos", tmp);
 	selview->cur = pos;
 }
 
@@ -417,36 +417,23 @@ mysql_items(MYSQL_RES *res, Item **items) {
 }
 
 void
-stfl_listview(Item *items, Field *fields, struct stfl_form *form) {
+ui_listview(Item *items, Field *fields) {
 	int *lens;
 
-	if(!form) {
-		form = stfl_create(L"<items.stfl>");
-		stfl_run(form, -1); /* refresh ncurses */
+	if(!selview->form) {
+		selview->form = ui_getform(L"<items.stfl>");
+		stfl_run(selview->form, -1); /* refresh ncurses */
 		curs_set(0);
 	}
 	lens = getmaxlengths(items, fields);
 	if(fields)
-		stfl_showfields(fields, lens);
-	stfl_showitems(items, lens);
+		ui_showfields(fields, lens);
+	ui_showitems(items, lens);
 	free(lens);
 }
 
-View *
-newaview(const char *name, void (*func)(void)) {
-	View *v;
-
-	v = ecalloc(1, sizeof(View));
-	v->mode = ecalloc(1, sizeof(Mode));
-	v->mode->name = ecalloc(strlen(name)+1, sizeof(char));
-	strcpy(v->mode->name, name);
-	v->mode->func = func;
-	attach(v);
-	return v;
-}
-
 void
-stfl_showfields(Field *fds, int *lens) {
+ui_showfields(Field *fds, int *lens) {
 	Field *fld;
 	char line[COLS+1], txt[MAXCOLSZ+1], col[MAXCOLSZ+1];
 	int i, len, nfields, linesz;
@@ -472,18 +459,31 @@ stfl_showfields(Field *fds, int *lens) {
 		if(linesz <= 0)
 			break;
 	}
-	stfl_setf("subtle", "%s", line);
-	stfl_setf("showsubtle", (line[0] ? "1" : "0"));
+	uiset("subtle", "%s", line);
+	uiset("showsubtle", (line[0] ? "1" : "0"));
 }
 
 void
-stfl_showitems(Item *items, int *lens) {
+ui_showitems(Item *items, int *lens) {
 	Item *item;
 
 	stfl_modify(selview->form, L"items", L"replace_inner", L"vbox"); /* clear */
 	for(item = selview->items; item; item = item->next)
-		stfl_putitem(item, lens);
-	stfl_set(selview->form, L"pos", L"0");
+		ui_putitem(item, lens);
+	uiset("pos", 0);
+}
+
+View *
+newaview(const char *name, void (*func)(void)) {
+	View *v;
+
+	v = ecalloc(1, sizeof(View));
+	v->mode = ecalloc(1, sizeof(Mode));
+	v->mode->name = ecalloc(strlen(name)+1, sizeof(char));
+	strcpy(v->mode->name, name);
+	v->mode->func = func;
+	attach(v);
+	return v;
 }
 
 /* XXX Improved logic:
@@ -509,7 +509,7 @@ reload(const Arg *arg) {
 	selview->mode->func();
 	if(selview->cur) {
 		snprintf(tmp, sizeof tmp, "%d", selview->cur);
-		stfl_set(selview->form, L"pos", stfl_ipool_towc(ipool, tmp));
+		uiset("pos", tmp);
 	}
 }
 
@@ -530,7 +530,7 @@ run(void) {
 			&& keys[i].modkey == code)
 				k = &keys[i];
 		if(k) {
-			stfl_setf("status", "");
+			uiset("status", "");
 			k->func(&k->arg);
 		}
 	}
@@ -560,7 +560,7 @@ sigint_handler(int unused) {
 }
 
 struct stfl_form *
-stfl_form(wchar_t *code) {
+ui_getform(wchar_t *code) {
 	struct stfl_form *f;
 
 	f = stfl_create(code);
@@ -570,18 +570,7 @@ stfl_form(wchar_t *code) {
 }
 
 void
-stfl_setf(const char *name, const char *fmtstr, ...) {
-	va_list ap;
-	char s[256];
-
-	va_start(ap, fmtstr);
-	vsnprintf(s, sizeof s, fmtstr, ap);
-	va_end(ap);
-	stfl_set(selview->form, stfl_ipool_towc(ipool, name), stfl_ipool_towc(ipool, s));
-}
-
-void
-stfl_putitem(Item *item, int *lens) {
+ui_putitem(Item *item, int *lens) {
 	const char *qline;
 	char *stfl, line[COLS + 1], txt[MAXCOLSZ+1], col[MAXCOLSZ+1];
 	int i, len, linesz;
@@ -627,6 +616,20 @@ stripesc(char *dst, char *src, int len) {
 }
 
 void
+uiset(const char *key, const char *fmtstr, ...) {
+	va_list ap;
+	char val[256];
+
+	if(!selview->form)
+		return;
+
+	va_start(ap, fmtstr);
+	vsnprintf(val, sizeof val, fmtstr, ap);
+	va_end(ap);
+	stfl_set(selview->form, stfl_ipool_towc(ipool, key), stfl_ipool_towc(ipool, val));
+}
+
+void
 usage(void) {
 	die("Usage: %s [-vhup <arg>]\n", argv0);
 }
@@ -637,9 +640,11 @@ viewdb(const Arg *arg) {
 
 	v = newaview("tables", viewdb_show);
 	v->choice = cloneitem(getitem(0));
-	if(!(v->choice && v->choice->ncols))
-		die("No database selected.\n");
-	v->form = stfl_form(L"<items.stfl>");
+	if(!(v->choice && v->choice->ncols)) {
+		uiset("status", "No database selected.");
+		return;
+	}
+	v->form = ui_getform(L"<items.stfl>");
 	mysql_select_db(mysql, v->choice->cols[0]);
 	selview = v;
 	viewdb_show();
@@ -649,19 +654,22 @@ void
 viewdb_show(void) {
 	MYSQL_RES *res;
 
-	if(!(res = mysql_exec("show tables")))
-		die("tables\n");
-	mysql_fillview(res, 0);
+	if(!(res = mysql_exec("show tables"))) {
+		uiset("status", "Cannot get tables list.");
+	}
+	else {
+		mysql_fillview(res, 0);
+		ui_listview(selview->items, NULL);
+	}
 	mysql_free_result(res);
-	stfl_listview(selview->items, NULL, selview->form);
-	stfl_setf("title", "Tables in `%s`", selview->choice->cols[0]);
-	stfl_setf("info", "%d table(s)", selview->nitems);
+	uiset("title", "Tables in `%s`", selview->choice->cols[0]);
+	uiset("info", "%d table(s)", selview->nitems);
 }
 
 void
 viewdblist(const Arg *arg) {
 	selview = newaview("databases", viewdblist_show);
-	selview->form = stfl_form(L"<items.stfl>");
+	selview->form = ui_getform(L"<items.stfl>");
 	viewdblist_show();
 }
 
@@ -669,13 +677,16 @@ void
 viewdblist_show(void) {
 	MYSQL_RES *res;
 
-	if(!(res = mysql_exec("show databases")))
-		die("databases\n");
-	mysql_fillview(res, 0);
+	if(!(res = mysql_exec("show databases"))) {
+		uiset("status", "Cannot get databases list.");
+	}
+	else {
+		mysql_fillview(res, 0);
+		ui_listview(selview->items, NULL);
+	}
 	mysql_free_result(res);
-	stfl_listview(selview->items, NULL, selview->form);
-	stfl_setf("title", "Databases in `%s`", dbhost);
-	stfl_setf("info", "%d DB(s)", selview->nitems);
+	uiset("title", "Databases in `%s`", dbhost);
+	uiset("info", "%d DB(s)", selview->nitems);
 }
 
 void
@@ -695,9 +706,11 @@ viewtable(const Arg *arg) {
 
 	v = newaview("records", viewtable_show);
 	v->choice = cloneitem(getitem(0));
-	if(!(v->choice && v->choice->ncols))
-		die("No table selected.\n");
-	v->form = stfl_form(L"<items.stfl>");
+	if(!(v->choice && v->choice->ncols)) {
+		uiset("status", "No table selected.");
+		return;
+	}
+	v->form = ui_getform(L"<items.stfl>");
 	selview = v;
 	viewtable_show();
 }
@@ -709,13 +722,16 @@ viewtable_show(void) {
 
 	tbl = ecalloc(1 + selview->choice->lens[0], sizeof(char));
 	snprintf(tbl, 1 + selview->choice->lens[0], "%s", selview->choice->cols[0]);
-	if(!(res = mysql_exec("select * from `%s`", tbl)))
-		die("records: cannot select `%s`\n", tbl);
-	mysql_fillview(res, 1);
+	if(!(res = mysql_exec("select * from `%s`", tbl))) {
+		uiset("status", "Cannot select from `%s`.", tbl);
+	}
+	else {
+		mysql_fillview(res, 1);
+		ui_listview(selview->items, selview->fields);
+	}
 	mysql_free_result(res);
-	stfl_listview(selview->items, selview->fields, selview->form);
-	stfl_setf("title", "Records in `%s`", tbl);
-	stfl_setf("info", "---Core: %d record(s)", selview->nitems);
+	uiset("title", "Records in `%s`", tbl);
+	uiset("info", "---Core: %d record(s)", selview->nitems);
 }
 
 int
