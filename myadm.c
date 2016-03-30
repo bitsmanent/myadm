@@ -106,8 +106,9 @@ void run(void);
 void setup(void);
 void sigint_handler(int unused);
 int stripesc(char *src, char *dst, int len);
-void uiset(const char *key, const char *fmtstr, ...);
+void ui_set(const char *key, const char *fmtstr, ...);
 struct stfl_form *ui_getform(wchar_t *code);
+void ui_modify(const char *name, const char *mode, const char *fmtstr, ...);
 void ui_listview(Item *items, Field *fields);
 void ui_putitem(Item *item, int *lens);
 void ui_showfields(Field *fds, int *lens);
@@ -164,7 +165,7 @@ ask(const char *msg, char *opts) {
 	int c;
 	char *o;
 
-	uiset("status", msg);
+	ui_set("status", msg);
 	stfl_run(selview->form, -1);
 	while((c = getch())) {
 		if(c == '\n') {
@@ -177,7 +178,7 @@ ask(const char *msg, char *opts) {
 		if(*o)
 			break;
 	}
-	uiset("status", "");
+	ui_set("status", "");
 	return *o;
 }
 
@@ -339,7 +340,7 @@ itemsel(const Arg *arg) {
 	else if(pos >= selview->nitems)
 		pos = selview->nitems - 1;
 	snprintf(tmp, sizeof tmp, "%d", pos);
-	uiset("pos", tmp);
+	ui_set("pos", tmp);
 	selview->cur = pos;
 }
 
@@ -459,8 +460,8 @@ ui_showfields(Field *fds, int *lens) {
 		if(linesz <= 0)
 			break;
 	}
-	uiset("subtle", "%s", line);
-	uiset("showsubtle", (line[0] ? "1" : "0"));
+	ui_set("subtle", "%s", line);
+	ui_set("showsubtle", (line[0] ? "1" : "0"));
 }
 
 void
@@ -470,7 +471,7 @@ ui_showitems(Item *items, int *lens) {
 	stfl_modify(selview->form, L"items", L"replace_inner", L"vbox"); /* clear */
 	for(item = selview->items; item; item = item->next)
 		ui_putitem(item, lens);
-	uiset("pos", 0);
+	ui_set("pos", 0);
 }
 
 View *
@@ -509,7 +510,7 @@ reload(const Arg *arg) {
 	selview->mode->func();
 	if(selview->cur) {
 		snprintf(tmp, sizeof tmp, "%d", selview->cur);
-		uiset("pos", tmp);
+		ui_set("pos", tmp);
 	}
 }
 
@@ -530,7 +531,7 @@ run(void) {
 			&& keys[i].modkey == code)
 				k = &keys[i];
 		if(k) {
-			uiset("status", "");
+			ui_set("status", "");
 			k->func(&k->arg);
 		}
 	}
@@ -570,9 +571,26 @@ ui_getform(wchar_t *code) {
 }
 
 void
+ui_modify(const char *name, const char *mode, const char *fmtstr, ...) {
+	va_list ap;
+	char txt[8192];
+
+	if(!selview->form)
+		return;
+
+	va_start(ap, fmtstr);
+	vsnprintf(txt, sizeof txt, fmtstr, ap);
+	va_end(ap);
+
+	stfl_modify(selview->form,
+		stfl_ipool_towc(ipool, name),
+		stfl_ipool_towc(ipool, mode),
+		stfl_ipool_towc(ipool, txt));
+}
+
+void
 ui_putitem(Item *item, int *lens) {
-	const char *qline;
-	char *stfl, line[COLS + 1], txt[MAXCOLSZ+1], col[MAXCOLSZ+1];
+	char line[COLS + 1], txt[MAXCOLSZ+1], col[MAXCOLSZ+1];
 	int i, len, linesz;
 
 	if(!(item && lens))
@@ -594,15 +612,7 @@ ui_putitem(Item *item, int *lens) {
 		if(linesz <= 0)
 			break;
 	}
-	/* XXX cleanup */
-	qline = QUOTE(line);
-	i = strlen("listitem text:");
-	len = strlen(qline) + i;
-	stfl = ecalloc(len + 1, sizeof(char));
-	memcpy(stfl, "listitem text:", i);
-	memcpy(&stfl[i], qline, len - i - 1);
-	stfl_modify(selview->form, L"items", L"append", stfl_ipool_towc(ipool, stfl));
-	free(stfl);
+	ui_modify("items", "append", "listitem text:%s", QUOTE(line));
 }
 
 int
@@ -616,7 +626,7 @@ stripesc(char *dst, char *src, int len) {
 }
 
 void
-uiset(const char *key, const char *fmtstr, ...) {
+ui_set(const char *key, const char *fmtstr, ...) {
 	va_list ap;
 	char val[256];
 
@@ -641,7 +651,7 @@ viewdb(const Arg *arg) {
 	v = newaview("tables", viewdb_show);
 	v->choice = cloneitem(getitem(0));
 	if(!(v->choice && v->choice->ncols)) {
-		uiset("status", "No database selected.");
+		ui_set("status", "No database selected.");
 		return;
 	}
 	v->form = ui_getform(L"<items.stfl>");
@@ -655,15 +665,15 @@ viewdb_show(void) {
 	MYSQL_RES *res;
 
 	if(!(res = mysql_exec("show tables"))) {
-		uiset("status", "Cannot get tables list.");
+		ui_set("status", "Cannot get tables list.");
 	}
 	else {
 		mysql_fillview(res, 0);
 		ui_listview(selview->items, NULL);
 	}
 	mysql_free_result(res);
-	uiset("title", "Tables in `%s`", selview->choice->cols[0]);
-	uiset("info", "%d table(s)", selview->nitems);
+	ui_set("title", "Tables in `%s`", selview->choice->cols[0]);
+	ui_set("info", "%d table(s)", selview->nitems);
 }
 
 void
@@ -678,15 +688,15 @@ viewdblist_show(void) {
 	MYSQL_RES *res;
 
 	if(!(res = mysql_exec("show databases"))) {
-		uiset("status", "Cannot get databases list.");
+		ui_set("status", "Cannot get databases list.");
 	}
 	else {
 		mysql_fillview(res, 0);
 		ui_listview(selview->items, NULL);
 	}
 	mysql_free_result(res);
-	uiset("title", "Databases in `%s`", dbhost);
-	uiset("info", "%d DB(s)", selview->nitems);
+	ui_set("title", "Databases in `%s`", dbhost);
+	ui_set("info", "%d DB(s)", selview->nitems);
 }
 
 void
@@ -707,7 +717,7 @@ viewtable(const Arg *arg) {
 	v = newaview("records", viewtable_show);
 	v->choice = cloneitem(getitem(0));
 	if(!(v->choice && v->choice->ncols)) {
-		uiset("status", "No table selected.");
+		ui_set("status", "No table selected.");
 		return;
 	}
 	v->form = ui_getform(L"<items.stfl>");
@@ -723,15 +733,15 @@ viewtable_show(void) {
 	tbl = ecalloc(1 + selview->choice->lens[0], sizeof(char));
 	snprintf(tbl, 1 + selview->choice->lens[0], "%s", selview->choice->cols[0]);
 	if(!(res = mysql_exec("select * from `%s`", tbl))) {
-		uiset("status", "Cannot select from `%s`.", tbl);
+		ui_set("status", "Cannot select from `%s`.", tbl);
 	}
 	else {
 		mysql_fillview(res, 1);
 		ui_listview(selview->items, selview->fields);
 	}
 	mysql_free_result(res);
-	uiset("title", "Records in `%s`", tbl);
-	uiset("info", "---Core: %d record(s)", selview->nitems);
+	ui_set("title", "Records in `%s`", tbl);
+	ui_set("info", "---Core: %d record(s)", selview->nitems);
 }
 
 int
