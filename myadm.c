@@ -780,6 +780,8 @@ main(int argc, char **argv) {
 		break;
 	case 'v':
 		die("%s " VERSION " (c) 2016 Claudio Alessi\n", argv0);
+	default:
+		usage();
 	} ARGEND;
 
 	setup();
