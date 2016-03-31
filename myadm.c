@@ -476,7 +476,7 @@ void
 ui_showitems(Item *items, int *lens) {
 	Item *item;
 
-	stfl_modify(selview->form, L"items", L"replace_inner", L"vbox"); /* clear */
+	ui_modify("items", "replace_inner", "vbox"); /* empty items */
 	for(item = selview->items; item; item = item->next)
 		ui_putitem(item, lens);
 	ui_set("pos", 0);
@@ -763,7 +763,7 @@ viewtable_show(void) {
 	}
 	mysql_free_result(res);
 	ui_set("title", "Records in `%s`", tbl);
-	ui_set("info", "---Core: %d record(s)", selview->nitems);
+	ui_set("info", "%d record(s)", selview->nitems);
 }
 
 int
