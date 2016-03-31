@@ -26,9 +26,7 @@
 #include "arg.h"
 char *argv0;
 
-#define LENGTH(X)               (sizeof X / sizeof X[0])
 #define QUOTE(S)		(stfl_ipool_fromwc(ipool, stfl_quote(stfl_ipool_towc(ipool, S))))
-#define LINESIZE(N)		(MAXCOLSZ * (N) + fldseplen * ((N) - 1) + 1);
 
 typedef union {
 	int i;
