@@ -81,7 +81,7 @@ struct View {
 void attach(View *v);
 void attachfield(Field *f, Field **ff);
 void attachitem(Item *i, Item **ii);
-char ask(const char *msg, char *opts);
+char ui_ask(const char *msg, char *opts);
 void cleanup(void);
 void cleanupfields(Field **fields);
 void cleanupitems(Item **items);
@@ -95,24 +95,28 @@ void *ecalloc(size_t nmemb, size_t size);
 Item *getitem(int pos);
 int *getmaxlengths(Item *items, Field *fields);
 void itemsel(const Arg *arg);
+int iscurmode(const char *name);
 MYSQL_RES *mysql_exec(const char *sqlstr, ...);
 int mysql_fields(MYSQL_RES *res, Field **fields);
 void mysql_fillview(MYSQL_RES *res, int showfds);
 int mysql_items(MYSQL_RES *res, Item **items);
 View *newaview(const char *name, void (*func)(void));
 void quit(const Arg *arg);
+void redraw(void);
 void reload(const Arg *arg);
 void run(void);
 void setup(void);
 void sigint_handler(int unused);
 int stripesc(char *src, char *dst, int len);
-void ui_set(const char *key, const char *fmtstr, ...);
+void ui_end(void);
 struct stfl_form *ui_getform(wchar_t *code);
 void ui_modify(const char *name, const char *mode, const char *fmtstr, ...);
 void ui_listview(Item *items, Field *fields);
 void ui_putitem(Item *item, int *lens);
+void ui_set(const char *key, const char *fmtstr, ...);
 void ui_showfields(Field *fds, int *lens);
 void ui_showitems(Item *items, int *lens);
+void ui_start(void);
 void usage(void);
 void viewdb(const Arg *arg);
 void viewdb_show(void);
@@ -161,12 +165,12 @@ attachitem(Item *i, Item **ii) {
 }
 
 char
-ask(const char *msg, char *opts) {
+ui_ask(const char *msg, char *opts) {
 	int c;
 	char *o;
 
 	ui_set("status", msg);
-	stfl_run(selview->form, -1);
+	redraw();
 	while((c = getch())) {
 		if(c == '\n') {
 			o = &opts[0];
@@ -186,8 +190,7 @@ void
 cleanup(void) {
 	while(views)
 		cleanupview(views);
-	stfl_reset();
-	stfl_ipool_destroy(ipool);
+	ui_end();
 	mysql_close(mysql);
 }
 
@@ -331,10 +334,13 @@ getmaxlengths(Item *items, Field *fields) {
 
 void
 itemsel(const Arg *arg) {
-	int pos = selview->cur;
+	int pos;
 	char tmp[8];
 
-	pos += arg->i;
+	if(!selview)
+		return;
+
+	pos = selview->cur + arg->i;
 	if(pos < 0)
 		pos = 0;
 	else if(pos >= selview->nitems)
@@ -342,6 +348,11 @@ itemsel(const Arg *arg) {
 	snprintf(tmp, sizeof tmp, "%d", pos);
 	ui_set("pos", tmp);
 	selview->cur = pos;
+}
+
+int
+iscurmode(const char *name) {
+	return !(name && selview && selview->mode && strcmp(selview->mode->name, name));
 }
 
 MYSQL_RES *
@@ -423,7 +434,6 @@ ui_listview(Item *items, Field *fields) {
 
 	if(!selview->form) {
 		selview->form = ui_getform(L"<items.stfl>");
-		stfl_run(selview->form, -1); /* refresh ncurses */
 		curs_set(0);
 	}
 	lens = getmaxlengths(items, fields);
@@ -496,9 +506,15 @@ quit(const Arg *arg) {
 	char *opts = "yn";
 
 	if(arg->i)
-		if(ask("Do you want to quit ([y]/n)?", opts) != opts[0])
+		if(ui_ask("Do you want to quit ([y]/n)?", opts) != opts[0])
 			return;
 	running = 0;
+}
+
+void
+redraw(void) {
+	if(selview && selview->form)
+		stfl_run(selview->form, -1);
 }
 
 void
@@ -521,14 +537,13 @@ run(void) {
 	int code;
 
 	while(running) {
-		stfl_run(selview->form, -1);
+		redraw();
 		code = getch();
 		if(code < 0)
 			continue;
 		k = NULL;
 		for(i = 0; i < LENGTH(keys); ++i)
-			if(!(keys[i].mode && strcmp(selview->mode->name, keys[i].mode))
-			&& keys[i].modkey == code)
+			if(iscurmode(keys[i].mode) && keys[i].modkey == code)
 				k = &keys[i];
 		if(k) {
 			ui_set("status", "");
@@ -545,13 +560,12 @@ setup(void) {
 	if(mysql_real_connect(mysql, dbhost, dbuser, dbpass, NULL, 0, NULL, 0) == NULL)
 		die("Cannot connect to the database.\n");
 	fldseplen = strlen(FLDSEP);
-	ipool = stfl_ipool_create(nl_langinfo(CODESET));
-	viewdblist(NULL);
-	nl();
 	sa.sa_flags = 0;
 	sigemptyset(&sa.sa_mask);
 	sa.sa_handler = sigint_handler;
 	sigaction(SIGINT, &sa, NULL);
+	ui_start();
+	viewdblist(NULL);
 }
 
 void
@@ -560,12 +574,27 @@ sigint_handler(int unused) {
 	quit(&arg);
 }
 
+int
+stripesc(char *dst, char *src, int len) {
+	int i, n;
+
+	for(i = 0, n = 0; i < len; ++i)
+		if(src[i] != '\r' && src[i] != '\n' && src[i] != '\t')
+			dst[n++] = src[i];
+	return n;
+}
+
+void
+ui_end(void) {
+	stfl_reset();
+	stfl_ipool_destroy(ipool);
+}
+
 struct stfl_form *
 ui_getform(wchar_t *code) {
 	struct stfl_form *f;
 
 	f = stfl_create(code);
-	stfl_run(f, -1); /* refresh ncurses */
 	curs_set(0);
 	return f;
 }
@@ -615,28 +644,27 @@ ui_putitem(Item *item, int *lens) {
 	ui_modify("items", "append", "listitem text:%s", QUOTE(line));
 }
 
-int
-stripesc(char *dst, char *src, int len) {
-	int i, n;
-
-	for(i = 0, n = 0; i < len; ++i)
-		if(src[i] != '\r' && src[i] != '\n' && src[i] != '\t')
-			dst[n++] = src[i];
-	return n;
-}
-
 void
 ui_set(const char *key, const char *fmtstr, ...) {
 	va_list ap;
 	char val[256];
 
-	if(!selview->form)
+	if(!selview)
 		return;
 
 	va_start(ap, fmtstr);
 	vsnprintf(val, sizeof val, fmtstr, ap);
 	va_end(ap);
 	stfl_set(selview->form, stfl_ipool_towc(ipool, key), stfl_ipool_towc(ipool, val));
+}
+
+void
+ui_start(void) {
+	struct stfl_form *f = ui_getform(L"label");
+	stfl_run(f, -1);
+	stfl_free(f);
+	nl();
+	ipool = stfl_ipool_create(nl_langinfo(CODESET));
 }
 
 void
@@ -654,7 +682,6 @@ viewdb(const Arg *arg) {
 		ui_set("status", "No database selected.");
 		return;
 	}
-	v->form = ui_getform(L"<items.stfl>");
 	mysql_select_db(mysql, v->choice->cols[0]);
 	selview = v;
 	viewdb_show();
@@ -679,7 +706,6 @@ viewdb_show(void) {
 void
 viewdblist(const Arg *arg) {
 	selview = newaview("databases", viewdblist_show);
-	selview->form = ui_getform(L"<items.stfl>");
 	viewdblist_show();
 }
 
@@ -720,7 +746,6 @@ viewtable(const Arg *arg) {
 		ui_set("status", "No table selected.");
 		return;
 	}
-	v->form = ui_getform(L"<items.stfl>");
 	selview = v;
 	viewtable_show();
 }
