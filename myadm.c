@@ -102,7 +102,6 @@ void mysql_fillview(MYSQL_RES *res, int showfds);
 int mysql_items(MYSQL_RES *res, Item **items);
 View *newaview(const char *name, void (*func)(void));
 void quit(const Arg *arg);
-void redraw(void);
 void reload(const Arg *arg);
 void run(void);
 void setup(void);
@@ -113,6 +112,7 @@ struct stfl_form *ui_getform(wchar_t *code);
 void ui_modify(const char *name, const char *mode, const char *fmtstr, ...);
 void ui_listview(Item *items, Field *fields);
 void ui_putitem(Item *item, int *lens);
+void ui_refresh(void);
 void ui_set(const char *key, const char *fmtstr, ...);
 void ui_showfields(Field *fds, int *lens);
 void ui_showitems(Item *items, int *lens);
@@ -170,7 +170,7 @@ ui_ask(const char *msg, char *opts) {
 	char *o;
 
 	ui_set("status", msg);
-	redraw();
+	ui_refresh();
 	while((c = getch())) {
 		if(c == '\n') {
 			o = &opts[0];
@@ -512,12 +512,6 @@ quit(const Arg *arg) {
 }
 
 void
-redraw(void) {
-	if(selview && selview->form)
-		stfl_run(selview->form, -1);
-}
-
-void
 reload(const Arg *arg) {
 	char tmp[8];
 
@@ -537,7 +531,7 @@ run(void) {
 	int code;
 
 	while(running) {
-		redraw();
+		ui_refresh();
 		code = getch();
 		if(code < 0)
 			continue;
@@ -642,6 +636,12 @@ ui_putitem(Item *item, int *lens) {
 			break;
 	}
 	ui_modify("items", "append", "listitem text:%s", QUOTE(line));
+}
+
+void
+ui_refresh(void) {
+	if(selview && selview->form)
+		stfl_run(selview->form, -1);
 }
 
 void
