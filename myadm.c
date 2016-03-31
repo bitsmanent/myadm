@@ -688,14 +688,11 @@ void
 viewdb_show(void) {
 	MYSQL_RES *res;
 
-	if(!(res = mysql_exec("show tables"))) {
-		ui_set("status", "Cannot get tables list.");
-	}
-	else {
-		mysql_fillview(res, 0);
-		ui_listview(selview->items, NULL);
-	}
+	if(!(res = mysql_exec("show tables")))
+		die("show tables");
+	mysql_fillview(res, 0);
 	mysql_free_result(res);
+	ui_listview(selview->items, NULL);
 	ui_set("title", "Tables in `%s`", selview->choice->cols[0]);
 	ui_set("info", "%d table(s)", selview->nitems);
 }
@@ -710,16 +707,13 @@ void
 viewdblist_show(void) {
 	MYSQL_RES *res;
 
-	if(!(res = mysql_exec("show databases"))) {
-		ui_set("status", "Cannot get databases list.");
-	}
-	else {
-		mysql_fillview(res, 0);
-		ui_listview(selview->items, NULL);
-	}
+	if(!(res = mysql_exec("show databases")))
+		die("show databases");
+	mysql_fillview(res, 0);
+	mysql_free_result(res);
+	ui_listview(selview->items, NULL);
 	ui_set("title", "Databases in `%s`", dbhost);
 	ui_set("info", "%d DB(s)", selview->nitems);
-	mysql_free_result(res);
 }
 
 void
@@ -754,14 +748,11 @@ viewtable_show(void) {
 
 	tbl = ecalloc(1 + selview->choice->lens[0], sizeof(char));
 	snprintf(tbl, 1 + selview->choice->lens[0], "%s", selview->choice->cols[0]);
-	if(!(res = mysql_exec("select * from `%s`", tbl))) {
-		ui_set("status", "Cannot select from `%s`.", tbl);
-	}
-	else {
-		mysql_fillview(res, 1);
-		ui_listview(selview->items, selview->fields);
-	}
+	if(!(res = mysql_exec("select * from `%s`", tbl)))
+		die("select from `%s`", tbl);
+	mysql_fillview(res, 1);
 	mysql_free_result(res);
+	ui_listview(selview->items, selview->fields);
 	ui_set("title", "Records in `%s`", tbl);
 	ui_set("info", "%d record(s)", selview->nitems);
 }
