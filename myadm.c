@@ -527,7 +527,6 @@ reload(const Arg *arg) {
 void
 run(void) {
 	Key *k;
-	unsigned int i;
 	int code;
 
 	while(running) {
@@ -536,9 +535,9 @@ run(void) {
 		if(code < 0)
 			continue;
 		k = NULL;
-		for(i = 0; i < LENGTH(keys); ++i)
-			if(iscurmode(keys[i].mode) && keys[i].modkey == code)
-				k = &keys[i];
+		for(k = keys; k; k++)
+			if(iscurmode(k->mode) && k->modkey == code)
+				break;
 		if(k) {
 			ui_set("status", "");
 			k->func(&k->arg);
@@ -720,16 +719,16 @@ viewdblist_show(void) {
 		mysql_fillview(res, 0);
 		ui_listview(selview->items, NULL);
 	}
-	mysql_free_result(res);
 	ui_set("title", "Databases in `%s`", dbhost);
 	ui_set("info", "%d DB(s)", selview->nitems);
+	mysql_free_result(res);
 }
 
 void
 viewprev(const Arg *arg) {
 	View *v;
 
-	if(!selview->next)
+	if(!(selview && selview->next))
 		return;
 	v = selview->next;
 	cleanupview(selview);
