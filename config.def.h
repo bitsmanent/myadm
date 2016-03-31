@@ -17,6 +17,11 @@ static const char *dbpass = "";
 
 static Key keys[] = {
 	/* mode          key           function        argument */
+        { "databases",   'q',          quit,           {.i = 0} },
+        { "databases",   '\n',         viewdb,         {0} },
+        { "databases",   ' ',          viewdb,         {0} },
+        { "tables",      '\n',         viewtable,      {0} },
+        { "tables",      ' ',          viewtable,      {0} },
         { NULL,          'Q',          quit,           {.i = 1} },
         { NULL,          'q',          viewprev,       {0} },
         { NULL,          'k',          itemsel,        {.i = -1} },
@@ -24,9 +29,4 @@ static Key keys[] = {
         { NULL,          'j',          itemsel,        {.i = +1} },
         { NULL,          KEY_DOWN,     itemsel,        {.i = +1} },
         { NULL,          'I',          reload,         {0} },
-        { "databases",   'q',          quit,           {.i = 0} },
-        { "databases",   '\n',         viewdb,         {0} },
-        { "databases",   ' ',          viewdb,         {0} },
-        { "tables",      '\n',         viewtable,      {0} },
-        { "tables",      ' ',          viewtable,      {0} },
 };
