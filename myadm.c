@@ -165,7 +165,7 @@ attachitem(Item *i, Item **ii) {
 char
 ui_ask(const char *msg, char *opts) {
 	int c;
-	char *o;
+	char *o = NULL;
 
 	ui_set("status", msg);
 	ui_refresh();
