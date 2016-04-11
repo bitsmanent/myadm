@@ -27,6 +27,8 @@
 char *argv0;
 
 #define QUOTE(S)		(stfl_ipool_fromwc(ipool, stfl_quote(stfl_ipool_towc(ipool, S))))
+#define ISCURMODE(N)		!(N && selview && selview->mode && strcmp(selview->mode->name, N))
+#define LENGTH(X)               (sizeof X / sizeof X[0])
 
 typedef union {
 	int i;
@@ -93,7 +95,6 @@ void *ecalloc(size_t nmemb, size_t size);
 Item *getitem(int pos);
 int *getmaxlengths(Item *items, Field *fields);
 void itemsel(const Arg *arg);
-int iscurmode(const char *name);
 MYSQL_RES *mysql_exec(const char *sqlstr, ...);
 int mysql_fields(MYSQL_RES *res, Field **fields);
 void mysql_fillview(MYSQL_RES *res, int showfds);
@@ -348,11 +349,6 @@ itemsel(const Arg *arg) {
 	selview->cur = pos;
 }
 
-int
-iscurmode(const char *name) {
-	return !(name && selview && selview->mode && strcmp(selview->mode->name, name));
-}
-
 MYSQL_RES *
 mysql_exec(const char *sqlstr, ...) {
 	MYSQL_RES *res;
@@ -526,6 +522,7 @@ void
 run(void) {
 	Key *k;
 	int code;
+	int i;
 
 	while(running) {
 		ui_refresh();
@@ -533,9 +530,11 @@ run(void) {
 		if(code < 0)
 			continue;
 		k = NULL;
-		for(k = keys; k; k++)
-			if(iscurmode(k->mode) && k->modkey == code)
+		for(i = 0; i < LENGTH(keys); ++i)
+			if(ISCURMODE(keys[i].mode) && keys[i].modkey == code) {
+				k = &keys[i];
 				break;
+			}
 		if(k) {
 			ui_set("status", "");
 			k->func(&k->arg);
