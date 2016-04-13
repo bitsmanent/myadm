@@ -547,6 +547,7 @@ void
 setup(void) {
 	struct sigaction sa;
 
+	setlocale(LC_CTYPE, "");
 	mysql = mysql_init(NULL);
 	if(mysql_real_connect(mysql, dbhost, dbuser, dbpass, NULL, 0, NULL, 0) == NULL)
 		die("Cannot connect to the database.\n");
