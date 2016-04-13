@@ -86,7 +86,6 @@ void cleanup(void);
 void cleanupfields(Field **fields);
 void cleanupitems(Item **items);
 void cleanupview(View *v);
-Item *cloneitem(Item *item);
 void detach(View *v);
 void detachfield(Field *f, Field **ff);
 void detachitem(Item *i, Item **ii);
@@ -200,8 +199,6 @@ cleanupview(View *v) {
 	cleanupfields(&v->fields);
 	if(v->form)
 		stfl_free(v->form);
-	if(v->choice)
-		cleanupitems(&v->choice);
 	free(v);
 }
 
@@ -229,26 +226,6 @@ cleanupitems(Item **items) {
 		free(i->cols);
 		free(i);
 	}
-}
-
-Item *
-cloneitem(Item *item) {
-	Item *ic;
-	int i;
-
-	if(!item)
-		return NULL;
-
-	ic = ecalloc(1, sizeof(Item));
-	ic->cols = ecalloc(item->ncols, sizeof(char *));
-	ic->lens = ecalloc(item->ncols, sizeof(int));
-	ic->ncols = item->ncols;
-	for(i = 0; i < item->ncols; ++i) {
-		ic->cols[i] = ecalloc(item->lens[i], sizeof(char));
-		ic->lens[i] = item->lens[i];
-		memcpy(ic->cols[i], item->cols[i], item->lens[i]);
-	}
-	return ic;
 }
 
 void
@@ -485,7 +462,7 @@ newaview(const char *name, void (*func)(void)) {
 	v = ecalloc(1, sizeof(View));
 	v->mode = ecalloc(1, sizeof(Mode));
 	v->mode->name = ecalloc(strlen(name)+1, sizeof(char));
-	v->choice = cloneitem(getitem(0));
+	v->choice = getitem(0);
 	strcpy(v->mode->name, name);
 	v->mode->func = func;
 	attach(v);
