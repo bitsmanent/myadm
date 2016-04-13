@@ -595,7 +595,8 @@ ui_init(void) {
 
 	stfl_run(f, -3); /* init ncurses */
 	stfl_free(f);
-	nl();
+	nocbreak();
+	raw();
 	ipool = stfl_ipool_create(nl_langinfo(CODESET));
 }
 
