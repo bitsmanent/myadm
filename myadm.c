@@ -651,15 +651,14 @@ usage(void) {
 
 void
 viewdb(const Arg *arg) {
-	View *v;
+	Item *choice = getitem(0);
 
-	v = newaview("tables", viewdb_show);
-	if(!(v->choice && v->choice->ncols)) {
+	if(!(choice && choice->ncols)) {
 		ui_set("status", "No database selected.");
 		return;
 	}
-	mysql_select_db(mysql, v->choice->cols[0]);
-	selview = v;
+	mysql_select_db(mysql, choice->cols[0]);
+	selview = newaview("tables", viewdb_show);
 	viewdb_show();
 }
 
@@ -708,14 +707,13 @@ viewprev(const Arg *arg) {
 
 void
 viewtable(const Arg *arg) {
-	View *v;
+	Item *choice = getitem(0);
 
-	v = newaview("records", viewtable_show);
-	if(!(v->choice && v->choice->ncols)) {
+	if(!(choice && choice->ncols)) {
 		ui_set("status", "No table selected.");
 		return;
 	}
-	selview = v;
+	selview = newaview("records", viewtable_show);
 	viewtable_show();
 }
 
