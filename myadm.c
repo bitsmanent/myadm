@@ -108,6 +108,7 @@ void sigint_handler(int unused);
 int stripesc(char *src, char *dst, int len);
 void ui_end(void);
 struct stfl_form *ui_getform(wchar_t *code);
+void ui_init(void);
 void ui_modify(const char *name, const char *mode, const char *fmtstr, ...);
 void ui_listview(Item *items, Field *fields);
 void ui_putitem(Item *item, int *lens);
@@ -115,7 +116,6 @@ void ui_refresh(void);
 void ui_set(const char *key, const char *fmtstr, ...);
 void ui_showfields(Field *fds, int *lens);
 void ui_showitems(Item *items, int *lens);
-void ui_start(void);
 void usage(void);
 void viewdb(const Arg *arg);
 void viewdb_show(void);
@@ -554,7 +554,7 @@ setup(void) {
 	sigemptyset(&sa.sa_mask);
 	sa.sa_handler = sigint_handler;
 	sigaction(SIGINT, &sa, NULL);
-	ui_start();
+	ui_init();
 	viewdblist(NULL);
 }
 
@@ -587,6 +587,16 @@ ui_getform(wchar_t *code) {
 	f = stfl_create(code);
 	curs_set(0);
 	return f;
+}
+
+void
+ui_init(void) {
+	struct stfl_form *f = ui_getform(L"label");
+
+	stfl_run(f, -3); /* init ncurses */
+	stfl_free(f);
+	nl();
+	ipool = stfl_ipool_create(nl_langinfo(CODESET));
 }
 
 void
@@ -652,15 +662,6 @@ ui_set(const char *key, const char *fmtstr, ...) {
 	vsnprintf(val, sizeof val, fmtstr, ap);
 	va_end(ap);
 	stfl_set(selview->form, stfl_ipool_towc(ipool, key), stfl_ipool_towc(ipool, val));
-}
-
-void
-ui_start(void) {
-	struct stfl_form *f = ui_getform(L"label");
-	stfl_run(f, -1);
-	stfl_free(f);
-	nl();
-	ipool = stfl_ipool_create(nl_langinfo(CODESET));
 }
 
 void
