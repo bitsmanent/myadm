@@ -485,6 +485,7 @@ newaview(const char *name, void (*func)(void)) {
 	v = ecalloc(1, sizeof(View));
 	v->mode = ecalloc(1, sizeof(Mode));
 	v->mode->name = ecalloc(strlen(name)+1, sizeof(char));
+	v->choice = cloneitem(getitem(0));
 	strcpy(v->mode->name, name);
 	v->mode->func = func;
 	attach(v);
@@ -675,7 +676,6 @@ viewdb(const Arg *arg) {
 	View *v;
 
 	v = newaview("tables", viewdb_show);
-	v->choice = cloneitem(getitem(0));
 	if(!(v->choice && v->choice->ncols)) {
 		ui_set("status", "No database selected.");
 		return;
@@ -733,7 +733,6 @@ viewtable(const Arg *arg) {
 	View *v;
 
 	v = newaview("records", viewtable_show);
-	v->choice = cloneitem(getitem(0));
 	if(!(v->choice && v->choice->ncols)) {
 		ui_set("status", "No table selected.");
 		return;
