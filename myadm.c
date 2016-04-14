@@ -718,7 +718,7 @@ viewtable(const Arg *arg) {
 void
 viewtable_show(void) {
 	MYSQL_RES *res;
-	char tbl[MAXCOLSZ+1];
+	char tbl[64+1];
 
 	snprintf(tbl, sizeof tbl, "%s", selview->choice->cols[0]);
 	if(!(res = mysql_exec("select * from `%s`", tbl)))
