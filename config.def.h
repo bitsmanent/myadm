@@ -22,6 +22,7 @@ static Key keys[] = {
         { "databases",   ' ',          viewdb,         {0} },
         { "tables",      '\n',         viewtable,      {0} },
         { "tables",      ' ',          viewtable,      {0} },
+        { NULL,          CTRL('c'),    quit,           {.i = 1} },
         { NULL,          'Q',          quit,           {.i = 1} },
         { NULL,          'q',          viewprev,       {0} },
         { NULL,          'k',          itemsel,        {.i = -1} },

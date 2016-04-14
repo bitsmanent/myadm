@@ -15,7 +15,6 @@
 #include <stdarg.h>
 #include <string.h>
 #include <stdlib.h>
-#include <signal.h>
 
 #include <mysql.h>
 #include <stfl.h>
@@ -104,7 +103,6 @@ void reload(const Arg *arg);
 void run(void);
 void setview(const char *name, void (*func)(void));
 void setup(void);
-void sigint_handler(int unused);
 int stripesc(char *src, char *dst, int len);
 void ui_end(void);
 struct stfl_form *ui_getform(wchar_t *code);
@@ -528,25 +526,13 @@ setview(const char *name, void (*func)(void)) {
 
 void
 setup(void) {
-	struct sigaction sa;
-
 	setlocale(LC_CTYPE, "");
 	mysql = mysql_init(NULL);
 	if(mysql_real_connect(mysql, dbhost, dbuser, dbpass, NULL, 0, NULL, 0) == NULL)
 		die("Cannot connect to the database.\n");
 	fldseplen = strlen(FLDSEP);
-	sa.sa_flags = 0;
-	sigemptyset(&sa.sa_mask);
-	sa.sa_handler = sigint_handler;
-	sigaction(SIGINT, &sa, NULL);
 	ui_init();
 	setview("databases", viewdblist_show);
-}
-
-void
-sigint_handler(int unused) {
-	Arg arg = {.i = 1};
-	quit(&arg);
 }
 
 int
