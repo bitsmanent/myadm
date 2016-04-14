@@ -653,7 +653,7 @@ void
 viewdb(const Arg *arg) {
 	Item *choice = getitem(0);
 
-	if(!(choice && choice->ncols)) {
+	if(!choice) {
 		ui_set("status", "No database selected.");
 		return;
 	}
@@ -718,10 +718,9 @@ viewtable(const Arg *arg) {
 void
 viewtable_show(void) {
 	MYSQL_RES *res;
-	char *tbl;
+	char tbl[MAXCOLSZ+1];
 
-	tbl = ecalloc(1 + selview->choice->lens[0], sizeof(char));
-	snprintf(tbl, 1 + selview->choice->lens[0], "%s", selview->choice->cols[0]);
+	snprintf(tbl, sizeof tbl, "%s", selview->choice->cols[0]);
 	if(!(res = mysql_exec("select * from `%s`", tbl)))
 		die("select from `%s`", tbl);
 	mysql_fillview(res, 1);
