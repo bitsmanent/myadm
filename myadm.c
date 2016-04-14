@@ -102,6 +102,7 @@ View *newaview(const char *name, void (*func)(void));
 void quit(const Arg *arg);
 void reload(const Arg *arg);
 void run(void);
+void setview(const char *name, void (*func)(void));
 void setup(void);
 void sigint_handler(int unused);
 int stripesc(char *src, char *dst, int len);
@@ -118,7 +119,6 @@ void ui_showitems(Item *items, int *lens);
 void usage(void);
 void viewdb(const Arg *arg);
 void viewdb_show(void);
-void viewdblist(const Arg *arg);
 void viewdblist_show(void);
 void viewprev(const Arg *arg);
 void viewtable(const Arg *arg);
@@ -521,6 +521,12 @@ run(void) {
 }
 
 void
+setview(const char *name, void (*func)(void)) {
+	selview = newaview(name, func);
+	func();
+}
+
+void
 setup(void) {
 	struct sigaction sa;
 
@@ -534,7 +540,7 @@ setup(void) {
 	sa.sa_handler = sigint_handler;
 	sigaction(SIGINT, &sa, NULL);
 	ui_init();
-	viewdblist(NULL);
+	setview("databases", viewdblist_show);
 }
 
 void
@@ -658,8 +664,7 @@ viewdb(const Arg *arg) {
 		return;
 	}
 	mysql_select_db(mysql, choice->cols[0]);
-	selview = newaview("tables", viewdb_show);
-	viewdb_show();
+	setview("tables", viewdb_show);
 }
 
 void
@@ -673,12 +678,6 @@ viewdb_show(void) {
 	ui_listview(selview->items, NULL);
 	ui_set("title", "Tables in `%s`", selview->choice->cols[0]);
 	ui_set("info", "%d table(s)", selview->nitems);
-}
-
-void
-viewdblist(const Arg *arg) {
-	selview = newaview("databases", viewdblist_show);
-	viewdblist_show();
 }
 
 void
@@ -711,8 +710,7 @@ viewtable(const Arg *arg) {
 		ui_set("status", "No table selected.");
 		return;
 	}
-	selview = newaview("records", viewtable_show);
-	viewtable_show();
+	setview("records", viewtable_show);
 }
 
 void
