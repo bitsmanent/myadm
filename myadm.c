@@ -707,9 +707,7 @@ viewprev(const Arg *arg) {
 
 void
 viewtable(const Arg *arg) {
-	Item *choice = getitem(0);
-
-	if(!(choice && choice->ncols)) {
+	if(!getitem(0)) {
 		ui_set("status", "No table selected.");
 		return;
 	}
