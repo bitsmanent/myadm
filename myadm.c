@@ -15,7 +15,7 @@
 #include <stdarg.h>
 #include <string.h>
 #include <stdlib.h>
-
+#include <ctype.h>
 #include <mysql.h>
 #include <stfl.h>
 #include <langinfo.h>
@@ -432,9 +432,7 @@ ui_showfields(Field *fds, int *lens) {
 				break;
 		}
 		for(j = 0; j < fld->len && j < lens[i] && linesz; ++j)
-			if(fld->name[j] != '\r'
-			&& fld->name[j] != '\n'
-			&& fld->name[j] != '\t') {
+			if(isprint(fld->name[j])) {
 				line[li++] = fld->name[j];
 				--linesz;
 			}
@@ -601,9 +599,7 @@ ui_putitem(Item *item, int *lens) {
 				break;
 		}
 		for(j = 0; j < item->lens[i] && j < lens[i] && linesz; ++j)
-			if(item->cols[i][j] != '\r'
-			&& item->cols[i][j] != '\n'
-			&& item->cols[i][j] != '\t') {
+			if(isprint(item->cols[i][j])) {
 				line[li++] = item->cols[i][j];
 				--linesz;
 			}
