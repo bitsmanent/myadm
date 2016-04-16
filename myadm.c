@@ -29,6 +29,8 @@ char *argv0;
 #define ISCURMODE(N)		!(N && selview && selview->mode && strcmp(selview->mode->name, N))
 #define LENGTH(X)               (sizeof X / sizeof X[0])
 
+#define MYSQLIDLEN		64
+
 typedef union {
 	int i;
 	unsigned int ui;
@@ -46,7 +48,7 @@ struct Item {
 
 typedef struct Field Field;
 struct Field {
-	char name[64];
+	char name[MYSQLIDLEN];
 	int len;
 	Field *next;
 };
@@ -103,7 +105,6 @@ void reload(const Arg *arg);
 void run(void);
 void setview(const char *name, void (*func)(void));
 void setup(void);
-int stripesc(char *src, char *dst, int len);
 void ui_end(void);
 struct stfl_form *ui_getform(wchar_t *code);
 void ui_init(void);
@@ -415,32 +416,35 @@ ui_listview(Item *items, Field *fields) {
 void
 ui_showfields(Field *fds, int *lens) {
 	Field *fld;
-	char line[COLS+1], txt[MAXCOLSZ+1], col[MAXCOLSZ+1];
-	int i, len, nfields, linesz;
+	char line[COLS + 1];
+	int linesz = COLS, li = 0, i, j;
 
 	if(!(fds && lens))
 		return;
-
-	for(fld = fds, nfields = 0; fld; fld = fld->next, ++nfields);
-	linesz = sizeof line;
 	line[0] = '\0';
 	for(fld = fds, i = 0; fld; fld = fld->next, ++i) {
 		if(i) {
-			strncat(line, FLDSEP, linesz);
-			linesz -= fldseplen;
-			if(linesz <= 0)
+			for(j = 0; j < fldseplen && linesz; ++j) {
+				line[li++] = FLDSEP[j];
+				--linesz;
+			}
+			if(!linesz)
 				break;
 		}
-		len = stripesc(col, fld->name, lens[i]);
-		col[len] = '\0';
-		snprintf(txt, sizeof txt, "%-*.*s", lens[i], lens[i], col);
-		strncat(line, txt, linesz);
-		linesz -= lens[i];
-		if(linesz <= 0)
-			break;
+		for(j = 0; j < fld->len && j < lens[i] && linesz; ++j)
+			if(fld->name[j] != '\r'
+			&& fld->name[j] != '\n'
+			&& fld->name[j] != '\t') {
+				line[li++] = fld->name[j];
+				--linesz;
+			}
+		while(j++ < lens[i] && linesz) {
+			line[li++] = ' ';
+			--linesz;
+		}
 	}
 	ui_set("subtle", "%s", line);
-	ui_set("showsubtle", (line[0] ? "1" : "0"));
+	ui_set("showsubtle", "%d", (line[0] ? 1 : 0));
 }
 
 void
@@ -535,16 +539,6 @@ setup(void) {
 	setview("databases", viewdblist_show);
 }
 
-int
-stripesc(char *dst, char *src, int len) {
-	int i, n;
-
-	for(i = 0, n = 0; i < len; ++i)
-		if(src[i] != '\r' && src[i] != '\n' && src[i] != '\t')
-			dst[n++] = src[i];
-	return n;
-}
-
 void
 ui_end(void) {
 	stfl_reset();
@@ -591,28 +585,34 @@ ui_modify(const char *name, const char *mode, const char *fmtstr, ...) {
 
 void
 ui_putitem(Item *item, int *lens) {
-	char line[COLS + 1], txt[MAXCOLSZ+1], col[MAXCOLSZ+1];
-	int i, len, linesz;
+	char line[COLS + 1];
+	int linesz = COLS, li = 0, i, j;
 
 	if(!(item && lens))
 		return;
-	linesz = sizeof line;
 	line[0] = '\0';
 	for(i = 0; i < item->ncols; ++i) {
 		if(i) {
-			strncat(line, FLDSEP, linesz);
-			linesz -= fldseplen;
-			if(linesz <= 0)
+			for(j = 0; j < fldseplen && linesz; ++j) {
+				line[li++] = FLDSEP[j];
+				--linesz;
+			}
+			if(!linesz)
 				break;
 		}
-		len = stripesc(col, item->cols[i], lens[i]);
-		col[len] = '\0';
-		snprintf(txt, sizeof txt, "%-*.*s", lens[i], lens[i], col);
-		strncat(line, txt, linesz);
-		linesz -= lens[i];
-		if(linesz <= 0)
-			break;
+		for(j = 0; j < item->lens[i] && j < lens[i] && linesz; ++j)
+			if(item->cols[i][j] != '\r'
+			&& item->cols[i][j] != '\n'
+			&& item->cols[i][j] != '\t') {
+				line[li++] = item->cols[i][j];
+				--linesz;
+			}
+		while(j++ < lens[i] && linesz) {
+			line[li++] = ' ';
+			--linesz;
+		}
 	}
+	line[li] = '\0';
 	ui_modify("items", "append", "listitem text:%s", QUOTE(line));
 }
 
@@ -644,12 +644,14 @@ usage(void) {
 void
 viewdb(const Arg *arg) {
 	Item *choice = getitem(0);
+	char db[MYSQLIDLEN+1];
 
 	if(!choice) {
 		ui_set("status", "No database selected.");
 		return;
 	}
-	mysql_select_db(mysql, choice->cols[0]);
+	snprintf(db, choice->lens[0]+1, "%s", choice->cols[0]);
+	mysql_select_db(mysql, db);
 	setview("tables", viewdb_show);
 }
 
@@ -702,9 +704,9 @@ viewtable(const Arg *arg) {
 void
 viewtable_show(void) {
 	MYSQL_RES *res;
-	char tbl[64+1];
+	char tbl[MYSQLIDLEN+1];
 
-	snprintf(tbl, sizeof tbl, "%s", selview->choice->cols[0]);
+	snprintf(tbl, selview->choice->lens[0]+1, "%s", selview->choice->cols[0]);
 	if(!(res = mysql_exec("select * from `%s`", tbl)))
 		die("select from `%s`", tbl);
 	mysql_fillview(res, 1);
