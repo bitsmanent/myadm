@@ -441,6 +441,7 @@ ui_showfields(Field *fds, int *lens) {
 			--linesz;
 		}
 	}
+	line[li] = '\0';
 	ui_set("subtle", "%s", line);
 	ui_set("showsubtle", "%d", (line[0] ? 1 : 0));
 }
