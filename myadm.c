@@ -417,29 +417,22 @@ void
 ui_showfields(Field *fds, int *lens) {
 	Field *fld;
 	char line[COLS + 1];
-	int linesz = COLS, li = 0, i, j;
+	int li = 0, i, j;
 
 	if(!(fds && lens))
 		return;
 	line[0] = '\0';
 	for(fld = fds, i = 0; fld; fld = fld->next, ++i) {
 		if(i) {
-			for(j = 0; j < fldseplen && linesz; ++j) {
+			for(j = 0; j < fldseplen && li < COLS; ++j)
 				line[li++] = FLDSEP[j];
-				--linesz;
-			}
-			if(!linesz)
+			if(li == COLS)
 				break;
 		}
-		for(j = 0; j < fld->len && j < lens[i] && linesz; ++j)
-			if(isprint(fld->name[j])) {
-				line[li++] = fld->name[j];
-				--linesz;
-			}
-		while(j++ < lens[i] && linesz) {
+		for(j = 0; j < fld->len && j < lens[i] && li < COLS; ++j)
+			line[li++] = fld->name[j];
+		while(j++ < lens[i] && li < COLS)
 			line[li++] = ' ';
-			--linesz;
-		}
 	}
 	line[li] = '\0';
 	ui_set("subtle", "%s", line);
@@ -585,29 +578,25 @@ ui_modify(const char *name, const char *mode, const char *fmtstr, ...) {
 void
 ui_putitem(Item *item, int *lens) {
 	char line[COLS + 1];
-	int linesz = COLS, li = 0, i, j;
+	int pad, li = 0, i, j;
 
 	if(!(item && lens))
 		return;
 	line[0] = '\0';
 	for(i = 0; i < item->ncols; ++i) {
 		if(i) {
-			for(j = 0; j < fldseplen && linesz; ++j) {
+			for(j = 0; j < fldseplen && li < COLS; ++j)
 				line[li++] = FLDSEP[j];
-				--linesz;
-			}
-			if(!linesz)
+			if(li == COLS)
 				break;
 		}
-		for(j = 0; j < item->lens[i] && j < lens[i] && linesz; ++j)
-			if(isprint(item->cols[i][j])) {
+		pad = li;
+		for(j = 0; j < item->lens[i] && j < lens[i] && li < COLS; ++j)
+			if(isprint(item->cols[i][j]))
 				line[li++] = item->cols[i][j];
-				--linesz;
-			}
-		while(j++ < lens[i] && linesz) {
+		pad = li - pad;
+		while(pad++ < lens[i] && li < COLS)
 			line[li++] = ' ';
-			--linesz;
-		}
 	}
 	line[li] = '\0';
 	ui_modify("items", "append", "listitem text:%s", QUOTE(line));
