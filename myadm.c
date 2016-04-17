@@ -289,13 +289,12 @@ int *
 getmaxlengths(Item *items, Field *fields) {
 	Item *item;
 	Field *fld;
-	int i, nfds, *lens;
+	int i, *lens;
 
 	if(!(items || fields))
 		return NULL;
 
-	for(fld = fields, nfds = 0; fld; fld = fld->next, ++nfds);
-	lens = ecalloc(nfds, sizeof(int));
+	lens = ecalloc(items->ncols, sizeof(int));
 	if(fields)
 		for(fld = fields, i = 0; fld; fld = fld->next, ++i)
 			lens[i] = (fld->len <= MAXCOLSZ ? fld->len : MAXCOLSZ);
