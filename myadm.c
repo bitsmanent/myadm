@@ -535,7 +535,6 @@ mysql_items(MYSQL_RES *res, Item **items) {
 		for(i = 0; i < nfds; ++i) {
 			item->cols[i] = ecalloc(lens[i], sizeof(char) + 1);
 			memcpy(item->cols[i], row[i], lens[i]);
-			item->cols[i][ lens[i] ] = '\0';
 			item->lens[i] = lens[i];
 		}
 		attachitem(item, items);
