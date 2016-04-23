@@ -288,7 +288,13 @@ ecalloc(size_t nmemb, size_t size) {
 char *
 editbuf(char *in, int len, int *sz) {
 	Arg a;
-	char *tmp = "/tmp/myadm.tmp";
+	char tmp[] = "myadm.XXXXXX";
+	int fd;
+
+	fd = mkstemp(tmp);
+	if(fd == -1)
+		return NULL;
+	close(fd);
 
 	a.v = (const char*[]){"/bin/sh", "-c", "$EDITOR \"$0\"", tmp, NULL};
 	fput(tmp, in, len);
