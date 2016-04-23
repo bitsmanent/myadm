@@ -288,7 +288,7 @@ ecalloc(size_t nmemb, size_t size) {
 char *
 editbuf(char *in, int len, int *sz) {
 	Arg a;
-	char tmp[] = "myadm.XXXXXX";
+	char tmp[] = "myadm.XXXXXX", *buf;
 	int fd;
 
 	fd = mkstemp(tmp);
@@ -302,7 +302,9 @@ editbuf(char *in, int len, int *sz) {
 	wait(NULL);
 	curs_set(1); curs_set(0); /* XXX Investigate... */
 	ui_redraw();
-	return fget(tmp, sz);
+	buf = fget(tmp, sz);
+	unlink(tmp);
+	return buf;
 }
 
 void
