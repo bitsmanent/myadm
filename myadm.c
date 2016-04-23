@@ -600,7 +600,7 @@ newaview(const char *name, void (*func)(void)) {
 	v = ecalloc(1, sizeof(View));
 	v->mode = ecalloc(1, sizeof(Mode));
 	v->choice = getitem(0);
-	strcpy(v->mode->name, name);
+	strncpy(v->mode->name, name, sizeof v->mode->name);
 	v->mode->func = func;
 	attach(v);
 	return v;
