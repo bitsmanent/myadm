@@ -32,7 +32,7 @@
 char *argv0;
 
 #define QUOTE(S)		(stfl_ipool_fromwc(ipool, stfl_quote(stfl_ipool_towc(ipool, S))))
-#define ISCURMODE(N)		!(N && selview && selview->mode && strcmp(selview->mode->name, N))
+#define ISCURMODE(N)		!(N && selview && strcmp(selview->mode.name, N))
 #define LENGTH(X)               (sizeof X / sizeof X[0])
 
 #define MYSQLIDLEN		64
@@ -74,7 +74,7 @@ typedef struct {
 
 typedef struct View View;
 struct View {
-	Mode *mode;
+	Mode mode;
 	Item *items;
 	Item *choice;
 	Field *fields;
@@ -598,10 +598,9 @@ newaview(const char *name, void (*func)(void)) {
 	View *v;
 
 	v = ecalloc(1, sizeof(View));
-	v->mode = ecalloc(1, sizeof(Mode));
 	v->choice = getitem(0);
-	strncpy(v->mode->name, name, sizeof v->mode->name);
-	v->mode->func = func;
+	strncpy(v->mode.name, name, sizeof v->mode.name);
+	v->mode.func = func;
 	attach(v);
 	return v;
 }
@@ -624,9 +623,9 @@ void
 reload(const Arg *arg) {
 	char tmp[8];
 
-	if(!selview->mode->func)
+	if(!selview->mode.func)
 		return;
-	selview->mode->func();
+	selview->mode.func();
 	if(selview->cur) {
 		snprintf(tmp, sizeof tmp, "%d", selview->cur);
 		ui_set("pos", tmp);
