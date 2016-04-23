@@ -68,7 +68,7 @@ typedef struct {
 } Key;
 
 typedef struct {
-	char *name;
+	char name[16];
 	void (*func)(void);
 } Mode;
 
@@ -599,7 +599,6 @@ newaview(const char *name, void (*func)(void)) {
 
 	v = ecalloc(1, sizeof(View));
 	v->mode = ecalloc(1, sizeof(Mode));
-	v->mode->name = ecalloc(strlen(name)+1, sizeof(char));
 	v->choice = getitem(0);
 	strcpy(v->mode->name, name);
 	v->mode->func = func;
