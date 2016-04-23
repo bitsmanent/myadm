@@ -22,6 +22,12 @@
 #include <locale.h>
 #include <curses.h>
 
+#include <unistd.h>
+#include <sys/types.h>
+#include <sys/wait.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+
 #include "arg.h"
 char *argv0;
 
@@ -43,6 +49,7 @@ struct Item {
 	char **cols;
 	int *lens;
 	int ncols;
+	int id;
 	Item *next;
 };
 
@@ -92,12 +99,18 @@ void detachfield(Field *f, Field **ff);
 void detachitem(Item *i, Item **ii);
 void die(const char *errstr, ...);
 void *ecalloc(size_t nmemb, size_t size);
+char *editbuf(char *in, int len, int *sz);
+void editrecord(const Arg *arg);
+char *fget(char *fn, int *sz);
+int fput(char *fn, char *s, int size);
 Item *getitem(int pos);
 int *getmaxlengths(Item *items, Field *fields);
 void itemsel(const Arg *arg);
+char *mksql_update_record(Item *item, Field *fields, char *tbl, char *pk);
 MYSQL_RES *mysql_exec(const char *sqlstr, ...);
 int mysql_fields(MYSQL_RES *res, Field **fields);
 void mysql_fillview(MYSQL_RES *res, int showfds);
+int mysql_pkey(char *key, char *tbl);
 int mysql_items(MYSQL_RES *res, Item **items);
 View *newaview(const char *name, void (*func)(void));
 void quit(const Arg *arg);
@@ -105,12 +118,14 @@ void reload(const Arg *arg);
 void run(void);
 void setview(const char *name, void (*func)(void));
 void setup(void);
+void spawn(const Arg *arg);
 void ui_end(void);
 struct stfl_form *ui_getform(wchar_t *code);
 void ui_init(void);
 void ui_modify(const char *name, const char *mode, const char *fmtstr, ...);
 void ui_listview(Item *items, Field *fields);
 void ui_putitem(Item *item, int *lens);
+void ui_redraw(void);
 void ui_refresh(void);
 void ui_set(const char *key, const char *fmtstr, ...);
 void ui_showfields(Field *fds, int *lens);
@@ -270,6 +285,87 @@ ecalloc(size_t nmemb, size_t size) {
 	return p;
 }
 
+char *
+editbuf(char *in, int len, int *sz) {
+	Arg a;
+	char *tmp = "/tmp/myadm.tmp";
+
+	a.v = (const char*[]){"/bin/sh", "-c", "$EDITOR \"$0\"", tmp, NULL};
+	fput(tmp, in, len);
+	spawn(&a);
+	wait(NULL);
+	curs_set(1); curs_set(0); /* XXX Investigate... */
+	ui_redraw();
+	return fget(tmp, sz);
+}
+
+void
+editrecord(const Arg *arg) {
+	Item *item = getitem(0);
+	char *tbl = views->choice->cols[0], pk[MYSQLIDLEN+1], *buf, *sql;
+	int bufsz, sqlsz;
+
+	if(!item) {
+		ui_set("status", "No item selected.");
+		return;
+	}
+	if(mysql_pkey(pk, tbl)) {
+		ui_set("status", "Cannot edit records in `%s`.", tbl);
+		return;
+	}
+	sql = mksql_update_record(item, selview->fields, tbl, pk);
+	sqlsz = strlen(sql);
+	buf = editbuf(sql, sqlsz, &bufsz);
+	free(sql);
+	if(!buf) {
+		ui_set("status", "Cannot edit the record.");
+		return;
+	}
+	if(bufsz == sqlsz) {
+		ui_set("status", "No changes.");
+	}
+	else {
+		mysql_exec(buf);
+		if(*mysql_error(mysql))
+			ui_set("status", "Wrong SQL code.\n");
+		else
+			reload(NULL);
+	}
+	free(buf);
+}
+
+char *
+fget(char *fn, int *sz) {
+	FILE *fp;
+	char *buf;
+
+	fp = fopen(fn, "rb");
+	if(!fp)
+		return NULL;
+	fseek(fp, 0, SEEK_END);
+	*sz = ftell(fp);
+	fseek(fp, 0, SEEK_SET);
+
+	buf = ecalloc(1, (*sz)+1);
+	fread(buf, *sz, 1, fp);
+	fclose(fp);
+	buf[*sz] = '\0';
+
+	return buf;
+}
+
+int
+fput(char *fn, char *s, int size) {
+	FILE *fp;
+
+	fp = fopen(fn, "w");
+	if(!fp)
+		return -1;
+	fwrite(s, size, 1, fp);
+	fclose(fp);
+	return 0;
+}
+
 Item *
 getitem(int pos) {
 	Item *item;
@@ -289,12 +385,16 @@ int *
 getmaxlengths(Item *items, Field *fields) {
 	Item *item;
 	Field *fld;
-	int i, *lens;
+	int i, *lens, ncols;
 
 	if(!(items || fields))
 		return NULL;
 
-	lens = ecalloc(items->ncols, sizeof(int));
+	if(items)
+		ncols = items->ncols;
+	else
+		for(fld = fields, ncols = 0; fld; fld = fld->next, ++ncols);
+	lens = ecalloc(ncols, sizeof(int));
 	if(fields)
 		for(fld = fields, i = 0; fld; fld = fld->next, ++i)
 			lens[i] = (fld->len <= MAXCOLSZ ? fld->len : MAXCOLSZ);
@@ -324,18 +424,45 @@ itemsel(const Arg *arg) {
 	selview->cur = pos;
 }
 
+char *
+mksql_update_record(Item *item, Field *fields, char *tbl, char *pk) {
+	Field *fld;
+	char *sql, *sqlfds = NULL, *pkv = NULL;
+	size_t i, len = 0, cnt = 0, size = 0;
+
+	for(i = 0, fld = fields; fld; fld = fld->next, ++i) {
+		if(!pkv && !strncmp(pk, fld->name, fld->len))
+			pkv = item->cols[i];
+		len = 10 + fld->len + item->lens[i];
+		if(cnt + len >= size)
+			if(!(sqlfds = realloc(sqlfds, (size += (len <= BUFSIZ ? BUFSIZ : len)))))
+				die("cannot realloc %u bytes:", size);
+		snprintf(&sqlfds[cnt], len, "\n%c`%s` = '%s'",
+			cnt ? ',' : ' ', fld->name, item->cols[i]);
+		cnt += len - 1;
+	}
+	size += 29;
+	sql = ecalloc(1, size);
+	snprintf(sql, size, "UPDATE `%s` SET%s\nWHERE `%s` = '%s'", tbl, sqlfds, pk, pkv);
+	free(sqlfds);
+	return sql;
+}
+
 MYSQL_RES *
 mysql_exec(const char *sqlstr, ...) {
 	MYSQL_RES *res;
 	va_list ap;
-	char sql[128];
+	char *sql;
 	int sqlen;
 
 	va_start(ap, sqlstr);
-	sqlen = vsnprintf(sql, sizeof sql, sqlstr, ap);
+	sqlen = vasprintf(&sql, sqlstr, ap);
 	va_end(ap);
-	if(mysql_real_query(mysql, sql, sqlen))
+	if(mysql_real_query(mysql, sql, sqlen)) {
+		free(sql);
 		return NULL;
+	}
+	free(sql);
 	res = mysql_store_result(mysql);
 	if(!res)
 		return NULL;
@@ -372,10 +499,27 @@ mysql_fillview(MYSQL_RES *res, int showfds) {
 }
 
 int
+mysql_pkey(char *key, char *tbl) {
+	MYSQL_RES *res;
+	MYSQL_ROW row;
+
+	res = mysql_exec("show keys from `%s` where Non_unique = 0", tbl);
+	if(!res)
+		return 1;
+	if(!(row = mysql_fetch_row(res))) {
+		mysql_free_result(res);
+		return 2;
+	}
+	sprintf(key, "%s", row[4]);
+	mysql_free_result(res);
+	return 0;
+}
+
+int
 mysql_items(MYSQL_RES *res, Item **items) {
 	MYSQL_ROW row;
 	Item *item;
-	int i, nfds, nrows;
+	int id = 0 , i, nfds, nrows;
 	unsigned long *lens;
 
 	nfds = mysql_num_fields(res);
@@ -385,11 +529,13 @@ mysql_items(MYSQL_RES *res, Item **items) {
 		item = ecalloc(1, sizeof(Item));
 		item->lens = ecalloc(nfds, sizeof(int));
 		item->cols = ecalloc(nfds, sizeof(char *));
+		item->id = ++id;
 		lens = mysql_fetch_lengths(res);
 		item->ncols = nfds;
 		for(i = 0; i < nfds; ++i) {
-			item->cols[i] = ecalloc(lens[i], sizeof(char));
+			item->cols[i] = ecalloc(lens[i], sizeof(char) + 1);
 			memcpy(item->cols[i], row[i], lens[i]);
+			item->cols[i][ lens[i] ] = '\0';
 			item->lens[i] = lens[i];
 		}
 		attachitem(item, items);
@@ -401,14 +547,13 @@ void
 ui_listview(Item *items, Field *fields) {
 	int *lens;
 
-	if(!selview->form) {
+	if(!selview->form)
 		selview->form = ui_getform(L"<items.stfl>");
-		curs_set(0);
-	}
 	lens = getmaxlengths(items, fields);
 	if(fields)
 		ui_showfields(fields, lens);
-	ui_showitems(items, lens);
+	if(items)
+		ui_showitems(items, lens);
 	free(lens);
 }
 
@@ -531,6 +676,17 @@ setup(void) {
 }
 
 void
+spawn(const Arg *arg) {
+	if(!fork()) {
+		setsid();
+		execvp(((char **)arg->v)[0], (char **)arg->v);
+		fprintf(stderr, "myadm: execvp %s", ((char **)arg->v)[0]);
+		perror(" failed");
+		exit(EXIT_SUCCESS);
+	}
+}
+
+void
 ui_end(void) {
 	stfl_reset();
 	stfl_ipool_destroy(ipool);
@@ -541,7 +697,6 @@ ui_getform(wchar_t *code) {
 	struct stfl_form *f;
 
 	f = stfl_create(code);
-	curs_set(0);
 	return f;
 }
 
@@ -553,25 +708,25 @@ ui_init(void) {
 	stfl_free(f);
 	nocbreak();
 	raw();
+	curs_set(0);
 	ipool = stfl_ipool_create(nl_langinfo(CODESET));
 }
 
 void
 ui_modify(const char *name, const char *mode, const char *fmtstr, ...) {
 	va_list ap;
-	char txt[256];
+	char *txt;
 
 	if(!selview->form)
 		return;
-
 	va_start(ap, fmtstr);
-	vsnprintf(txt, sizeof txt, fmtstr, ap);
+	vasprintf(&txt, fmtstr, ap);
 	va_end(ap);
-
 	stfl_modify(selview->form,
 		stfl_ipool_towc(ipool, name),
 		stfl_ipool_towc(ipool, mode),
 		stfl_ipool_towc(ipool, txt));
+	free(txt);
 }
 
 void
@@ -591,14 +746,21 @@ ui_putitem(Item *item, int *lens) {
 		}
 		pad = li;
 		for(j = 0; j < item->lens[i] && j < lens[i] && li < COLS; ++j)
-			if(isprint(item->cols[i][j]))
-				line[li++] = item->cols[i][j];
+			line[li++] = (isprint(item->cols[i][j])
+					? item->cols[i][j]
+					: ' ');
 		pad = li - pad;
 		while(pad++ < lens[i] && li < COLS)
 			line[li++] = ' ';
 	}
 	line[li] = '\0';
-	ui_modify("items", "append", "listitem text:%s", QUOTE(line));
+	ui_modify("items", "append", "listitem[%d] text:%s", item->id, QUOTE(line));
+}
+
+void
+ui_redraw(void) {
+	if(selview && selview->form)
+		stfl_redraw(selview->form);
 }
 
 void
@@ -629,14 +791,12 @@ usage(void) {
 void
 viewdb(const Arg *arg) {
 	Item *choice = getitem(0);
-	char db[MYSQLIDLEN+1];
 
 	if(!choice) {
 		ui_set("status", "No database selected.");
 		return;
 	}
-	snprintf(db, choice->lens[0]+1, "%s", choice->cols[0]);
-	mysql_select_db(mysql, db);
+	mysql_select_db(mysql, choice->cols[0]);
 	setview("tables", viewdb_show);
 }
 
@@ -689,15 +849,18 @@ viewtable(const Arg *arg) {
 void
 viewtable_show(void) {
 	MYSQL_RES *res;
-	char tbl[MYSQLIDLEN+1];
+	Item *choice = selview->choice;
 
-	snprintf(tbl, selview->choice->lens[0]+1, "%s", selview->choice->cols[0]);
-	if(!(res = mysql_exec("select * from `%s`", tbl)))
-		die("select from `%s`", tbl);
+	if(!choice) {
+		ui_set("status", "No table selected.");
+		return;
+	}
+	if(!(res = mysql_exec("select * from `%s`", choice->cols[0])))
+		die("select from `%s`", choice->cols[0]);
 	mysql_fillview(res, 1);
 	mysql_free_result(res);
 	ui_listview(selview->items, selview->fields);
-	ui_set("title", "Records in `%s`", tbl);
+	ui_set("title", "Records in `%s`", choice->cols[0]);
 	ui_set("info", "%d record(s)", selview->nitems);
 }
 
