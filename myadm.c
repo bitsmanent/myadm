@@ -302,7 +302,7 @@ editbuf(char *in, int len, int *sz) {
 void
 editrecord(const Arg *arg) {
 	Item *item = getitem(0);
-	char *tbl = views->choice->cols[0], pk[MYSQLIDLEN+1], *buf, *sql;
+	char *tbl = selview->choice->cols[0], pk[MYSQLIDLEN+1], *buf, *sql;
 	int bufsz, sqlsz;
 
 	if(!item) {
