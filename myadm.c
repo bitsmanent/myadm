@@ -379,6 +379,8 @@ fget(char *fn, int *sz) {
 	lseek(fd, 0, SEEK_SET);
 	buf = ecalloc(1, *sz+1);
 	read(fd, buf, *sz);
+	if(*sz && buf[*sz - 1] == '\n')
+		--*sz;
 	buf[*sz] = '\0';
 	close(fd);
 	return buf;
