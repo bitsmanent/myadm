@@ -298,8 +298,10 @@ editbuf(char *in, int len, int *sz) {
 	close(fd);
 
 	a.v = (const char*[]){"/bin/sh", "-c", "$EDITOR \"$0\"", tmp, NULL};
-	if(fput(tmp, in, len) == -1)
+	if(fput(tmp, in, len) == -1) {
+		unlink(tmp);
 		return NULL;
+	}
 	spawn(&a);
 	wait(NULL);
 	curs_set(1); curs_set(0); /* XXX Investigate... */
