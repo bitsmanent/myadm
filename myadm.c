@@ -366,33 +366,29 @@ escape(char *s, char c, int *nc) {
 
 char *
 fget(char *fn, int *sz) {
-	FILE *fp;
+	int fd;
 	char *buf;
 
-	fp = fopen(fn, "rb");
-	if(!fp)
+	fd = open(fn, O_RDONLY);
+	if(fd == -1)
 		return NULL;
-	fseek(fp, 0, SEEK_END);
-	*sz = ftell(fp);
-	fseek(fp, 0, SEEK_SET);
-
-	buf = ecalloc(1, (*sz)+1);
-	fread(buf, *sz, 1, fp);
-	fclose(fp);
-	buf[*sz] = '\0';
-
+	*sz = lseek(fd, 0, SEEK_END)+1;
+	lseek(fd, 0, SEEK_SET);
+	buf = ecalloc(1, *sz);
+	read(fd, buf, *sz);
+	close(fd);
 	return buf;
 }
 
 int
 fput(char *fn, char *s, int size) {
-	FILE *fp;
+	int fd;
 
-	fp = fopen(fn, "w");
-	if(!fp)
+	fd = open(fn, O_WRONLY | O_TRUNC);
+	if(fd == -1)
 		return -1;
-	fwrite(s, size, 1, fp);
-	fclose(fp);
+	write(fd, s, size);
+	close(fd);
 	return 0;
 }
 
