@@ -101,6 +101,7 @@ void die(const char *errstr, ...);
 void *ecalloc(size_t nmemb, size_t size);
 char *editbuf(char *in, int len, int *sz);
 void editrecord(const Arg *arg);
+char *escape(char *s, char c, int *nc);
 char *fget(char *fn, int *sz);
 int fput(char *fn, char *s, int size);
 Item *getitem(int pos);
@@ -343,6 +344,27 @@ editrecord(const Arg *arg) {
 }
 
 char *
+escape(char *s, char c, int *nc) {
+	int len, n, i;
+	char *esc;
+
+	*nc = 0;
+	for(esc = s; *esc; ++esc)
+		if(*esc == c)
+			++*nc;
+	if(!*nc)
+		return s;
+	len = strlen(s) + *nc;
+	esc = ecalloc(1, len);
+	for(i = 0, n = 0; i < len; ++i) {
+		if(s[i] == c)
+			esc[n++] = '\\';
+		esc[n++] = s[i];
+	}
+	return esc;
+}
+
+char *
 fget(char *fn, int *sz) {
 	FILE *fp;
 	char *buf;
@@ -435,19 +457,25 @@ itemsel(const Arg *arg) {
 char *
 mksql_update_record(Item *item, Field *fields, char *tbl, char *pk) {
 	Field *fld;
-	char *sql, *sqlfds = NULL, *pkv = NULL;
+	char *sql, *col, *sqlfds = NULL, *pkv = NULL;
 	size_t i, len = 0, cnt = 0, size = 0;
+	int nq;
 
 	for(i = 0, fld = fields; fld; fld = fld->next, ++i) {
 		if(!pkv && !strncmp(pk, fld->name, fld->len))
 			pkv = item->cols[i];
 		len = 10 + fld->len + item->lens[i];
+		col = escape(item->cols[i], '\'', &nq);
+		if(nq)
+			len += nq;
 		if(cnt + len >= size)
 			if(!(sqlfds = realloc(sqlfds, (size += (len <= BUFSIZ ? BUFSIZ : len)))))
 				die("cannot realloc %u bytes:", size);
 		snprintf(&sqlfds[cnt], len, "\n%c`%s` = '%s'",
-			cnt ? ',' : ' ', fld->name, item->cols[i]);
+			cnt ? ',' : ' ', fld->name, col);
 		cnt += len - 1;
+		if(nq)
+			free(col);
 	}
 	size += 29;
 	sql = ecalloc(1, size);
