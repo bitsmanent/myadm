@@ -372,7 +372,7 @@ fget(char *fn, int *sz) {
 	fd = open(fn, O_RDONLY);
 	if(fd == -1)
 		return NULL;
-	*sz = lseek(fd, 0, SEEK_END)+1;
+	*sz = lseek(fd, 0, SEEK_END);
 	lseek(fd, 0, SEEK_SET);
 	buf = ecalloc(1, *sz);
 	read(fd, buf, *sz);
