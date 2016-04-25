@@ -474,7 +474,7 @@ mksql_update_record(Item *item, Field *fields, char *tbl, char *pk) {
 		if(nq)
 			free(col);
 	}
-	size += 29;
+	size = 28 + cnt + strlen(pk) + strlen(pkv) + strlen(tbl);
 	sql = ecalloc(1, size);
 	snprintf(sql, size, "UPDATE `%s` SET%s\nWHERE `%s` = '%s'", tbl, sqlfds, pk, pkv);
 	free(sqlfds);
