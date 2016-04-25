@@ -302,10 +302,10 @@ editbuf(char *in, int len, int *sz) {
 		unlink(tmp);
 		return NULL;
 	}
+	ui_end();
 	spawn(&a);
-	wait(NULL);
-	curs_set(1); curs_set(0); /* XXX Investigate... */
-	ui_redraw();
+	while(wait(NULL) == -1);
+	ui_init();
 	buf = fget(tmp, sz);
 	unlink(tmp);
 	return buf;
@@ -713,7 +713,7 @@ setup(void) {
 void
 spawn(const Arg *arg) {
 	if(!fork()) {
-		setsid();
+		//setsid();
 		execvp(((char **)arg->v)[0], (char **)arg->v);
 		fprintf(stderr, "myadm: execvp %s", ((char **)arg->v)[0]);
 		perror(" failed");
