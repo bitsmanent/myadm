@@ -336,7 +336,7 @@ editrecord(const Arg *arg) {
 	else {
 		mysql_exec(buf);
 		if(*mysql_error(mysql))
-			ui_set("status", "Wrong SQL code.\n");
+			ui_set("status", "Wrong SQL code.");
 		else
 			reload(NULL);
 	}
