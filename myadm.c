@@ -385,7 +385,7 @@ escape(char *s, char c, int *nc) {
 char *
 fget(char *fn, int *sz) {
 	int fd;
-	char *buf, *p;
+	char *buf;
 
 	fd = open(fn, O_RDONLY);
 	if(fd == -1)
