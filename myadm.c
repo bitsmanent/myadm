@@ -15,6 +15,7 @@
 #include <stdarg.h>
 #include <string.h>
 #include <stdlib.h>
+#include <signal.h>
 #include <ctype.h>
 #include <mysql.h>
 #include <stfl.h>
@@ -119,7 +120,6 @@ void reload(const Arg *arg);
 void run(void);
 void setview(const char *name, void (*func)(void));
 void setup(void);
-void spawn(const Arg *arg);
 void ui_end(void);
 struct stfl_form *ui_getform(wchar_t *code);
 void ui_init(void);
@@ -288,27 +288,42 @@ ecalloc(size_t nmemb, size_t size) {
 
 char *
 editbuf(char *in, int len, int *sz) {
-	Arg a;
-	char tmp[] = "myadm.XXXXXX", *buf;
-	int fd;
+        pid_t pid;
+        char tmp[] = "myadm.XXXXXX", *buf;
+        int fd, rc = -1;
 
-	fd = mkstemp(tmp);
-	if(fd == -1)
-		return NULL;
-	close(fd);
-	if(fput(tmp, in, len) == -1) {
-		unlink(tmp);
-		return NULL;
+        fd = mkstemp(tmp);
+        if(fd == -1)
+                return NULL;
+        close(fd);
+        if(fput(tmp, in, len) == -1) {
+                unlink(tmp);
+                return NULL;
+        }
+
+	ui_end(); /* endwin() */
+
+	/* take off ncurses signal handlers */
+	struct sigaction sa = {.sa_flags = 0, .sa_handler = SIG_DFL};
+	sigaction(SIGINT, &sa, NULL);
+	sigaction(SIGTERM, &sa, NULL);
+	sigaction(SIGTSTP, &sa, NULL);
+	sigaction(SIGWINCH, &sa, NULL);
+
+        if((pid = fork()) == 0) {
+                execl("/bin/sh", "sh", "-c", "$EDITOR \"$0\"", tmp, NULL);
+                _exit(127);
+        }
+	else if(pid != -1) {
+		while(!WIFEXITED(rc))
+			waitpid(pid, &rc, 0);
 	}
-	a.v = (const char*[]){"/bin/sh", "-c", "$EDITOR \"$0\"", tmp, NULL};
-	ui_end();
-	spawn(&a);
-	while(wait(NULL) == -1);
-	ui_init();
+	ui_init(); /* restore ncurses signal handlers */
 	ui_redraw();
-	buf = fget(tmp, sz);
-	unlink(tmp);
-	return buf;
+
+        buf = fget(tmp, sz);
+        unlink(tmp);
+        return buf;
 }
 
 void
@@ -370,7 +385,7 @@ escape(char *s, char c, int *nc) {
 char *
 fget(char *fn, int *sz) {
 	int fd;
-	char *buf;
+	char *buf, *p;
 
 	fd = open(fn, O_RDONLY);
 	if(fd == -1)
@@ -379,8 +394,6 @@ fget(char *fn, int *sz) {
 	lseek(fd, 0, SEEK_SET);
 	buf = ecalloc(1, *sz+1);
 	read(fd, buf, *sz);
-	if(*sz && buf[*sz - 1] == '\n')
-		--*sz;
 	buf[*sz] = '\0';
 	close(fd);
 	return buf;
@@ -708,17 +721,6 @@ setup(void) {
 	fldseplen = strlen(FLDSEP);
 	ui_init();
 	setview("databases", viewdblist_show);
-}
-
-void
-spawn(const Arg *arg) {
-	if(!fork()) {
-		setsid();
-		execvp(((char **)arg->v)[0], (char **)arg->v);
-		fprintf(stderr, "myadm: execvp %s", ((char **)arg->v)[0]);
-		perror(" failed");
-		exit(EXIT_SUCCESS);
-	}
 }
 
 void
