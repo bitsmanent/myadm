@@ -296,16 +296,16 @@ editbuf(char *in, int len, int *sz) {
 	if(fd == -1)
 		return NULL;
 	close(fd);
-
-	a.v = (const char*[]){"/bin/sh", "-c", "$EDITOR \"$0\"", tmp, NULL};
 	if(fput(tmp, in, len) == -1) {
 		unlink(tmp);
 		return NULL;
 	}
+	a.v = (const char*[]){"/bin/sh", "-c", "$EDITOR \"$0\"", tmp, NULL};
 	ui_end();
 	spawn(&a);
 	while(wait(NULL) == -1);
 	ui_init();
+	ui_redraw();
 	buf = fget(tmp, sz);
 	unlink(tmp);
 	return buf;
@@ -713,7 +713,7 @@ setup(void) {
 void
 spawn(const Arg *arg) {
 	if(!fork()) {
-		//setsid();
+		setsid();
 		execvp(((char **)arg->v)[0], (char **)arg->v);
 		fprintf(stderr, "myadm: execvp %s", ((char **)arg->v)[0]);
 		perror(" failed");
