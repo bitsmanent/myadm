@@ -406,7 +406,10 @@ fput(char *fn, char *s, int size) {
 	fd = open(fn, O_WRONLY | O_TRUNC);
 	if(fd == -1)
 		return -1;
-	write(fd, s, size);
+	if(write(fd, s, size) == -1) {
+		close(fd);
+		return -1;
+	}
 	close(fd);
 	return 0;
 }
