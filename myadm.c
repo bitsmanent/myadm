@@ -402,14 +402,18 @@ itemsel(const Arg *arg) {
 char *
 mksql_update_record(Item *item, Field *fields, char *tbl, char *pk) {
 	Field *fld;
-	char *sql, *col, *sqlfds = NULL, *pkv = NULL;
-	size_t i, len = 0, cnt = 0, size = 0;
+	char *sql, *col = NULL, *sqlfds = NULL, *pkv = NULL;
+	size_t i, len = 0, cnt = 0, size = 0, max = 0;
 
 	for(i = 0, fld = fields; fld; fld = fld->next, ++i) {
 		if(!pkv && !strncmp(pk, fld->name, fld->len))
 			pkv = item->cols[i];
 		len = 10 + fld->len;
-		col = ecalloc(1, item->lens[i]*2+1);
+		if(item->lens[i] > max) {
+			max = item->lens[i];
+			if(!(col = realloc(col, max*2+1)))
+				die("cannot realloc %u bytes:", max*2+1);
+		}
 		len += escape(col, item->cols[i], item->lens[i], '\'', 0);
 		if(cnt + len >= size)
 			if(!(sqlfds = realloc(sqlfds, (size += (len <= BUFSIZ ? BUFSIZ : len)))))
@@ -417,8 +421,8 @@ mksql_update_record(Item *item, Field *fields, char *tbl, char *pk) {
 		snprintf(&sqlfds[cnt], len, "\n%c`%s` = '%s'",
 			cnt ? ',' : ' ', fld->name, col);
 		cnt += len - 1;
-		free(col);
 	}
+	free(col);
 	size = 1 + 28 + cnt + strlen(pk) + strlen(pkv) + strlen(tbl);
 	sql = ecalloc(1, size);
 	snprintf(sql, size, "UPDATE `%s` SET%s\nWHERE `%s` = '%s'", tbl, sqlfds, pk, pkv);
