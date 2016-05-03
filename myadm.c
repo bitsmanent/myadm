@@ -102,8 +102,7 @@ void die(const char *errstr, ...);
 void *ecalloc(size_t nmemb, size_t size);
 void editfile(char *file);
 void editrecord(const Arg *arg);
-int escape(char *esc, char *s, int sz, int c);
-int escape_flowctrls(char *esc, char *s, int sz);
+int escape(char *esc, char *s, int sz, char c, char q);
 char *fget(char *fn, int *sz);
 int fput(char *fn, char *s, int size);
 Item *getitem(int pos);
@@ -335,24 +334,11 @@ editrecord(const Arg *arg) {
 }
 
 int
-escape(char *esc, char *s, int sz, int c) {
+escape(char *esc, char *s, int sz, char c, char q) {
 	int i, ei = 0;
 
 	for(i = 0; i < sz; ++i) {
-		if(s[i] == c)
-			esc[ei++] = '\\';
-		esc[ei++] = s[i];
-	}
-	esc[ei] = '\0';
-	return ei;
-}
-
-int
-escape_flowctrls(char *esc, char *s, int sz) {
-	int i, ei = 0;
-
-	for(i = 0; i < sz; ++i) {
-		if(s[i] == '\\' && s[i+1] != '\'')
+		if(s[i] == c && (!q || s[i+1] != q))
 			esc[ei++] = '\\';
 		esc[ei++] = s[i];
 	}
@@ -461,7 +447,7 @@ mksql_update_record(Item *item, Field *fields, char *tbl, char *pk) {
 			pkv = item->cols[i];
 		len = 10 + fld->len;
 		col = ecalloc(1, item->lens[i]*2+1);
-		len += escape(col, item->cols[i], item->lens[i], '\'');
+		len += escape(col, item->cols[i], item->lens[i], '\'', 0);
 		if(cnt + len >= size)
 			if(!(sqlfds = realloc(sqlfds, (size += (len <= BUFSIZ ? BUFSIZ : len)))))
 				die("cannot realloc %u bytes:", size);
@@ -535,7 +521,7 @@ mysql_file_exec(char *file) {
 
 	/* We do not want flow control chars to be interpreted. */
 	esc = ecalloc(1, size*2+1);
-	escape_flowctrls(esc, buf, size);
+	escape(esc, buf, size, '\\', '\'');
 	res = mysql_exec(esc);
 	free(buf);
 	free(esc);
