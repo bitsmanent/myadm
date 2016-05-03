@@ -103,8 +103,6 @@ void *ecalloc(size_t nmemb, size_t size);
 void editfile(char *file);
 void editrecord(const Arg *arg);
 int escape(char *esc, char *s, int sz, char c, char q);
-char *fget(char *fn, int *sz);
-int fput(char *fn, char *s, int size);
 Item *getitem(int pos);
 int *getmaxlengths(Item *items, Field *fields);
 void itemsel(const Arg *arg);
@@ -344,40 +342,6 @@ escape(char *esc, char *s, int sz, char c, char q) {
 	}
 	esc[ei] = '\0';
 	return ei;
-}
-
-char *
-fget(char *fn, int *sz) {
-	int fd, size;
-	char *buf;
-
-	fd = open(fn, O_RDONLY);
-	if(fd == -1)
-		return NULL;
-	size = lseek(fd, 0, SEEK_END);
-	lseek(fd, 0, SEEK_SET);
-	buf = ecalloc(1, size+1);
-	read(fd, buf, size);
-	buf[size] = '\0';
-	close(fd);
-	if(sz)
-		*sz = size;
-	return buf;
-}
-
-int
-fput(char *fn, char *s, int size) {
-	int fd;
-
-	fd = open(fn, O_WRONLY | O_TRUNC);
-	if(fd == -1)
-		return -1;
-	if(write(fd, s, size) == -1) {
-		close(fd);
-		return -1;
-	}
-	close(fd);
-	return 0;
 }
 
 Item *
