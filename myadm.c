@@ -107,8 +107,8 @@ Item *getitem(int pos);
 int *getmaxlengths(Item *items, Field *fields);
 void itemsel(const Arg *arg);
 char *mksql_update_record(Item *item, Field *fields, char *tbl, char *pk);
-MYSQL_RES *mysql_file_exec(char *file);
-MYSQL_RES *mysql_exec(const char *sqlstr, ...);
+int mysql_file_exec(char *file);
+int mysql_exec(const char *sqlstr, ...);
 int mysql_fields(MYSQL_RES *res, Field **fields);
 void mysql_fillview(MYSQL_RES *res, int showfds);
 int mysql_pkey(char *key, char *tbl);
@@ -390,7 +390,6 @@ itemsel(const Arg *arg) {
 
 	if(!selview)
 		return;
-
 	pos = selview->cur + arg->i;
 	if(pos < 0)
 		pos = 0;
@@ -427,7 +426,7 @@ mksql_update_record(Item *item, Field *fields, char *tbl, char *pk) {
 	return sql;
 }
 
-MYSQL_RES *
+int
 mysql_exec(const char *sqlstr, ...) {
 	va_list ap;
 	char *sql;
@@ -438,10 +437,10 @@ mysql_exec(const char *sqlstr, ...) {
 	va_end(ap);
 	if(mysql_real_query(mysql, sql, sqlen)) {
 		free(sql);
-		return NULL;
+		return -1;
 	}
 	free(sql);
-	return mysql_store_result(mysql);
+	return mysql_field_count(mysql);
 }
 
 int
@@ -463,34 +462,33 @@ mysql_fields(MYSQL_RES *res, Field **fields) {
 	return nfds;
 }
 
-MYSQL_RES *
+int
 mysql_file_exec(char *file) {
-	MYSQL_RES *res;
 	char *buf, *esc;
-	int fd, size;
+	int fd, size, r;
 
 	fd = open(file, O_RDONLY);
 	if(fd == -1)
-		return NULL;
-
+		return -1;
 	lseek(fd, 0, SEEK_SET);
 	size = lseek(fd, 0, SEEK_END);
 	lseek(fd, 0, SEEK_SET);
 	buf = ecalloc(1, size+1);
 	if(read(fd, buf, size) != size) {
 		free(buf);
-		return NULL;
+		return -2;
 	}
 	buf[size] = '\0';
 
 	/* We do not want flow control chars to be interpreted. */
 	esc = ecalloc(1, size*2+1);
 	escape(esc, buf, size, '\\', '\'');
-	res = mysql_exec(esc);
+	r = mysql_exec(esc);
 	free(buf);
 	free(esc);
-
-	return res;
+	if(r == -1)
+		return -3;
+	return 0;
 }
 
 void
@@ -507,9 +505,10 @@ int
 mysql_pkey(char *key, char *tbl) {
 	MYSQL_RES *res;
 	MYSQL_ROW row;
+	int r;
 
-	res = mysql_exec("show keys from `%s` where Non_unique = 0", tbl);
-	if(!res)
+	r = mysql_exec("show keys from `%s` where Non_unique = 0", tbl);
+	if(r == -1 || !(res = mysql_store_result(mysql)))
 		return 1;
 	if(!(row = mysql_fetch_row(res))) {
 		mysql_free_result(res);
@@ -599,7 +598,6 @@ ui_showitems(Item *items, int *lens) {
 
 void
 ui_sql_edit_exec(char *sql) {
-	MYSQL_RES *res;
 	struct stat sb, sa;
 	int fd;
 	char tmpf[] = "/tmp/myadm.XXXXXX", *yn = "yn";
@@ -625,16 +623,15 @@ ui_sql_edit_exec(char *sql) {
 			ui_set("status", "No changes.");
 			break;
 		}
-		res = mysql_file_exec(tmpf);
-		if(*mysql_error(mysql)) {
-			if(ui_ask("Wrong SQL code. Continue editing ([y]/n)?", yn) == yn[0])
-				continue;
+		if(mysql_file_exec(tmpf) < 0) {
+			if(*mysql_error(mysql)) {
+				if(ui_ask("Wrong SQL code. Continue editing ([y]/n)?", yn) == yn[0])
+					continue;
+				break;
+			}
+			ui_set("status", "Something went wrong."); /* XXX improve */
 			break;
 		}
-		/* We're expecting an update here which don't allocate any
-		 * result but since the user is able to write any SQL code into
-		 * the file, make sure to free any eventual record set. */
-		mysql_free_result(res);
 		reload(NULL);
 		ui_set("status", "Updated.");
 		break;
@@ -840,7 +837,7 @@ void
 viewdb_show(void) {
 	MYSQL_RES *res;
 
-	if(!(res = mysql_exec("show tables")))
+	if(mysql_exec("show tables") == -1 || !(res = mysql_store_result(mysql)))
 		die("show tables");
 	mysql_fillview(res, 0);
 	mysql_free_result(res);
@@ -853,7 +850,7 @@ void
 viewdblist_show(void) {
 	MYSQL_RES *res;
 
-	if(!(res = mysql_exec("show databases")))
+	if(mysql_exec("show databases") == -1 || !(res = mysql_store_result(mysql)))
 		die("show databases");
 	mysql_fillview(res, 0);
 	mysql_free_result(res);
@@ -886,12 +883,14 @@ void
 viewtable_show(void) {
 	MYSQL_RES *res;
 	Item *choice = selview->choice;
+	int r;
 
 	if(!choice) {
 		ui_set("status", "No table selected.");
 		return;
 	}
-	if(!(res = mysql_exec("select * from `%s`", choice->cols[0])))
+	r = mysql_exec("select * from `%s`", choice->cols[0]);
+	if(r == -1 || !(res = mysql_store_result(mysql)))
 		die("select from `%s`", choice->cols[0]);
 	mysql_fillview(res, 1);
 	mysql_free_result(res);
