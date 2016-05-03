@@ -667,8 +667,8 @@ ui_sql_edit_exec(char *sql) {
 	}
 	close(fd);
 
+	stat(tmpf, &sb);
 	while(1) {
-		stat(tmpf, &sb);
 		editfile(tmpf);
 		stat(tmpf, &sa);
 		if(!sa.st_size || sb.st_mtime == sa.st_mtime) {
