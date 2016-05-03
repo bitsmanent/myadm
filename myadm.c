@@ -677,9 +677,9 @@ ui_sql_edit_exec(char *sql) {
 		}
 		res = mysql_file_exec(tmpf);
 		if(*mysql_error(mysql)) {
-			ui_set("status", "Wrong SQL code.");
-			if(ui_ask("Continue editing ([y]/n)?", yn) == yn[0])
+			if(ui_ask("Wrong SQL code. Continue editing ([y]/n)?", yn) == yn[0])
 				continue;
+			break;
 		}
 		/* We're expecting an update here which don't allocate any
 		 * result but since the user is able to write any SQL code into
