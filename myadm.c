@@ -434,17 +434,14 @@ int
 mysql_exec(const char *sqlstr, ...) {
 	va_list ap;
 	char *sql;
-	int sqlen;
+	int sqlen, r;
 
 	va_start(ap, sqlstr);
 	sqlen = vasprintf(&sql, sqlstr, ap);
 	va_end(ap);
-	if(mysql_real_query(mysql, sql, sqlen)) {
-		free(sql);
-		return -1;
-	}
+	r = mysql_real_query(mysql, sql, sqlen);
 	free(sql);
-	return mysql_field_count(mysql);
+	return (r ? -1 : mysql_field_count(mysql));
 }
 
 int
