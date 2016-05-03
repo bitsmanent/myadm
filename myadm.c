@@ -100,15 +100,17 @@ void detachfield(Field *f, Field **ff);
 void detachitem(Item *i, Item **ii);
 void die(const char *errstr, ...);
 void *ecalloc(size_t nmemb, size_t size);
-char *editbuf(char *in, int len, int *sz);
+void editfile(char *file);
 void editrecord(const Arg *arg);
-char *escape(char *s, char c, int *nc);
+int escape(char *esc, char *s, int sz, int c);
+int escape_flowctrls(char *esc, char *s, int sz);
 char *fget(char *fn, int *sz);
 int fput(char *fn, char *s, int size);
 Item *getitem(int pos);
 int *getmaxlengths(Item *items, Field *fields);
 void itemsel(const Arg *arg);
 char *mksql_update_record(Item *item, Field *fields, char *tbl, char *pk);
+MYSQL_RES *mysql_file_exec(char *file);
 MYSQL_RES *mysql_exec(const char *sqlstr, ...);
 int mysql_fields(MYSQL_RES *res, Field **fields);
 void mysql_fillview(MYSQL_RES *res, int showfds);
@@ -131,6 +133,7 @@ void ui_refresh(void);
 void ui_set(const char *key, const char *fmtstr, ...);
 void ui_showfields(Field *fds, int *lens);
 void ui_showitems(Item *items, int *lens);
+void ui_sql_edit_exec(char *sql);
 void usage(void);
 void viewdb(const Arg *arg);
 void viewdb_show(void);
@@ -286,20 +289,10 @@ ecalloc(size_t nmemb, size_t size) {
 	return p;
 }
 
-char *
-editbuf(char *in, int len, int *sz) {
+void
+editfile(char *file) {
         pid_t pid;
-        char tmp[] = "myadm.XXXXXX", *buf;
-        int fd, rc = -1;
-
-        fd = mkstemp(tmp);
-        if(fd == -1)
-                return NULL;
-        close(fd);
-        if(fput(tmp, in, len) == -1) {
-                unlink(tmp);
-                return NULL;
-        }
+	int rc = -1;
 
 	ui_end(); /* endwin() */
 
@@ -311,91 +304,78 @@ editbuf(char *in, int len, int *sz) {
 	sigaction(SIGWINCH, &sa, NULL);
 
         if((pid = fork()) == 0) {
-                execl("/bin/sh", "sh", "-c", "$EDITOR \"$0\"", tmp, NULL);
+                execl("/bin/sh", "sh", "-c", "$EDITOR \"$0\"", file, NULL);
                 _exit(127);
         }
-	else if(pid != -1) {
-		while(!WIFEXITED(rc))
-			waitpid(pid, &rc, 0);
-	}
+	else if(pid == -1)
+		return;
+	while(!WIFEXITED(rc))
+		waitpid(pid, &rc, 0);
 	ui_init(); /* restore ncurses signal handlers */
+	/* XXX restore above signal handlers? */
 	ui_redraw();
-
-        buf = fget(tmp, sz);
-        unlink(tmp);
-        return buf;
 }
 
 void
 editrecord(const Arg *arg) {
 	Item *item = getitem(0);
-	char *tbl = selview->choice->cols[0], pk[MYSQLIDLEN+1], *buf, *sql;
-	int bufsz, sqlsz;
+	char *tbl = selview->choice->cols[0], pk[MYSQLIDLEN+1], *sql;
 
 	if(!item) {
 		ui_set("status", "No item selected.");
 		return;
 	}
 	if(mysql_pkey(pk, tbl)) {
-		ui_set("status", "Cannot edit records in `%s`.", tbl);
+		ui_set("status", "Cannot edit records in `%s`, no unique key found.", tbl);
 		return;
 	}
 	sql = mksql_update_record(item, selview->fields, tbl, pk);
-	sqlsz = strlen(sql);
-	buf = editbuf(sql, sqlsz, &bufsz);
+	ui_sql_edit_exec(sql);
 	free(sql);
-	if(!buf) {
-		ui_set("status", "Cannot edit the record.");
-		return;
-	}
-	if(bufsz == sqlsz) {
-		ui_set("status", "No changes.");
-	}
-	else {
-		mysql_exec(buf);
-		if(*mysql_error(mysql))
-			ui_set("status", "Wrong SQL code.");
-		else
-			reload(NULL);
-	}
-	free(buf);
 }
 
-char *
-escape(char *s, char c, int *nc) {
-	int len, n, i;
-	char *esc;
+int
+escape(char *esc, char *s, int sz, int c) {
+	int i, ei = 0;
 
-	*nc = 0;
-	for(esc = s; *esc; ++esc)
-		if(*esc == c)
-			++*nc;
-	if(!*nc)
-		return s;
-	len = strlen(s) + *nc;
-	esc = ecalloc(1, len);
-	for(i = 0, n = 0; i < len; ++i) {
+	for(i = 0; i < sz; ++i) {
 		if(s[i] == c)
-			esc[n++] = '\\';
-		esc[n++] = s[i];
+			esc[ei++] = '\\';
+		esc[ei++] = s[i];
 	}
-	return esc;
+	esc[ei] = '\0';
+	return ei;
+}
+
+int
+escape_flowctrls(char *esc, char *s, int sz) {
+	int i, ei = 0;
+
+	for(i = 0; i < sz; ++i) {
+		if(s[i] == '\\' && s[i+1] != '\'')
+			esc[ei++] = '\\';
+		esc[ei++] = s[i];
+	}
+	esc[ei] = '\0';
+	return ei;
 }
 
 char *
 fget(char *fn, int *sz) {
-	int fd;
+	int fd, size;
 	char *buf;
 
 	fd = open(fn, O_RDONLY);
 	if(fd == -1)
 		return NULL;
-	*sz = lseek(fd, 0, SEEK_END);
+	size = lseek(fd, 0, SEEK_END);
 	lseek(fd, 0, SEEK_SET);
-	buf = ecalloc(1, *sz+1);
-	read(fd, buf, *sz);
-	buf[*sz] = '\0';
+	buf = ecalloc(1, size+1);
+	read(fd, buf, size);
+	buf[size] = '\0';
 	close(fd);
+	if(sz)
+		*sz = size;
 	return buf;
 }
 
@@ -457,7 +437,6 @@ getmaxlengths(Item *items, Field *fields) {
 void
 itemsel(const Arg *arg) {
 	int pos;
-	char tmp[8];
 
 	if(!selview)
 		return;
@@ -467,8 +446,7 @@ itemsel(const Arg *arg) {
 		pos = 0;
 	else if(pos >= selview->nitems)
 		pos = selview->nitems - 1;
-	snprintf(tmp, sizeof tmp, "%d", pos);
-	ui_set("pos", tmp);
+	ui_set("pos", "%d", pos);
 	selview->cur = pos;
 }
 
@@ -477,23 +455,20 @@ mksql_update_record(Item *item, Field *fields, char *tbl, char *pk) {
 	Field *fld;
 	char *sql, *col, *sqlfds = NULL, *pkv = NULL;
 	size_t i, len = 0, cnt = 0, size = 0;
-	int nq;
 
 	for(i = 0, fld = fields; fld; fld = fld->next, ++i) {
 		if(!pkv && !strncmp(pk, fld->name, fld->len))
 			pkv = item->cols[i];
-		len = 10 + fld->len + item->lens[i];
-		col = escape(item->cols[i], '\'', &nq);
-		if(nq)
-			len += nq;
+		len = 10 + fld->len;
+		col = ecalloc(1, item->lens[i]*2+1);
+		len += escape(col, item->cols[i], item->lens[i], '\'');
 		if(cnt + len >= size)
 			if(!(sqlfds = realloc(sqlfds, (size += (len <= BUFSIZ ? BUFSIZ : len)))))
 				die("cannot realloc %u bytes:", size);
 		snprintf(&sqlfds[cnt], len, "\n%c`%s` = '%s'",
 			cnt ? ',' : ' ', fld->name, col);
 		cnt += len - 1;
-		if(nq)
-			free(col);
+		free(col);
 	}
 	size = 1 + 28 + cnt + strlen(pk) + strlen(pkv) + strlen(tbl);
 	sql = ecalloc(1, size);
@@ -504,7 +479,6 @@ mksql_update_record(Item *item, Field *fields, char *tbl, char *pk) {
 
 MYSQL_RES *
 mysql_exec(const char *sqlstr, ...) {
-	MYSQL_RES *res;
 	va_list ap;
 	char *sql;
 	int sqlen;
@@ -517,10 +491,7 @@ mysql_exec(const char *sqlstr, ...) {
 		return NULL;
 	}
 	free(sql);
-	res = mysql_store_result(mysql);
-	if(!res)
-		return NULL;
-	return res;
+	return mysql_store_result(mysql);
 }
 
 int
@@ -540,6 +511,36 @@ mysql_fields(MYSQL_RES *res, Field **fields) {
 		attachfield(field, fields);
 	}
 	return nfds;
+}
+
+MYSQL_RES *
+mysql_file_exec(char *file) {
+	MYSQL_RES *res;
+	char *buf, *esc;
+	int fd, size;
+
+	fd = open(file, O_RDONLY);
+	if(fd == -1)
+		return NULL;
+
+	lseek(fd, 0, SEEK_SET);
+	size = lseek(fd, 0, SEEK_END);
+	lseek(fd, 0, SEEK_SET);
+	buf = ecalloc(1, size+1);
+	if(read(fd, buf, size) != size) {
+		free(buf);
+		return NULL;
+	}
+	buf[size] = '\0';
+
+	/* We do not want flow control chars to be interpreted. */
+	esc = ecalloc(1, size*2+1);
+	escape_flowctrls(esc, buf, size);
+	res = mysql_exec(esc);
+	free(buf);
+	free(esc);
+
+	return res;
 }
 
 void
@@ -646,6 +647,51 @@ ui_showitems(Item *items, int *lens) {
 	ui_set("pos", 0);
 }
 
+void
+ui_sql_edit_exec(char *sql) {
+	MYSQL_RES *res;
+	struct stat sb, sa;
+	int fd;
+	char tmpf[] = "/tmp/myadm.XXXXXX", *yn = "yn";
+
+        fd = mkstemp(tmpf);
+	if(fd == -1) {
+		ui_set("status", "Cannot make a temporary file.");
+		return;
+	}
+        if(write(fd, sql, strlen(sql)) == -1) {
+		close(fd);
+		unlink(tmpf);
+		ui_set("status", "Cannot write into the temporary file.");
+		return;
+	}
+	close(fd);
+
+	while(1) {
+		stat(tmpf, &sb);
+		editfile(tmpf);
+		stat(tmpf, &sa);
+		if(!sa.st_size || sb.st_mtime == sa.st_mtime) {
+			ui_set("status", "No changes.");
+			break;
+		}
+		res = mysql_file_exec(tmpf);
+		if(*mysql_error(mysql)) {
+			ui_set("status", "Wrong SQL code.");
+			if(ui_ask("Continue editing ([y]/n)?", yn) == yn[0])
+				continue;
+		}
+		/* We're expecting an update here which don't allocate any
+		 * result but since the user is able to write any SQL code into
+		 * the file, make sure to free any eventual record set. */
+		mysql_free_result(res);
+		reload(NULL);
+		ui_set("status", "Updated.");
+		break;
+	}
+	unlink(tmpf);
+}
+
 View *
 newaview(const char *name, void (*func)(void)) {
 	View *v;
@@ -664,10 +710,10 @@ newaview(const char *name, void (*func)(void)) {
  *  0 never ask */
 void
 quit(const Arg *arg) {
-	char *opts = "yn";
+	char *yn= "yn";
 
 	if(arg->i)
-		if(ui_ask("Do you want to quit ([y]/n)?", opts) != opts[0])
+		if(ui_ask("Do you want to quit ([y]/n)?", yn) != yn[0])
 			return;
 	running = 0;
 }
