@@ -889,10 +889,6 @@ viewtable_show(void) {
 	Item *choice = selview->choice;
 	int r;
 
-	if(!choice) {
-		ui_set("status", "No table selected.");
-		return;
-	}
 	r = mysql_exec("select * from `%s`", choice->cols[0]);
 	if(r == -1 || !(res = mysql_store_result(mysql)))
 		die("select from `%s`", choice->cols[0]);
