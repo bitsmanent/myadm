@@ -315,7 +315,9 @@ editfile(char *file) {
 	sigaction(SIGTSTP, &saold[2], NULL);
 	sigaction(SIGWINCH, &saold[3], NULL);
 
-	ui_redraw();
+	/* reinitialize ncurses */
+	endwin();
+	refresh();
 }
 
 void
@@ -372,7 +374,6 @@ getmaxlengths(Item *items, Field *fields) {
 
 	if(!(items || fields))
 		return NULL;
-
 	if(items)
 		ncols = items->ncols;
 	else
@@ -427,10 +428,10 @@ mksql_update_record(Item *item, Field *fields, char *tbl, char *pk) {
 			cnt ? ',' : ' ', fld->name, col);
 		cnt += len - 1;
 	}
-	free(col);
 	size = 1 + 28 + cnt + strlen(pk) + strlen(pkv) + strlen(tbl);
 	sql = ecalloc(1, size);
 	snprintf(sql, size, "UPDATE `%s` SET%s\nWHERE `%s` = '%s'", tbl, sqlfds, pk, pkv);
+	free(col);
 	free(sqlfds);
 	return sql;
 }
