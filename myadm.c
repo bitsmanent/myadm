@@ -37,6 +37,7 @@ char *argv0;
 #define LENGTH(X)               (sizeof X / sizeof X[0])
 
 #define MYSQLIDLEN		64
+#define MAXQUERYLEN		4096
 
 typedef union {
 	int i;
@@ -309,7 +310,6 @@ editfile(char *file) {
 	while(!WIFEXITED(rc))
 		waitpid(pid, &rc, 0);
 	ui_init(); /* restore ncurses signal handlers */
-	/* XXX restore above signal handlers? */
 	ui_redraw();
 }
 
@@ -433,14 +433,13 @@ mksql_update_record(Item *item, Field *fields, char *tbl, char *pk) {
 int
 mysql_exec(const char *sqlstr, ...) {
 	va_list ap;
-	char *sql;
-	int sqlen, r;
+	char sql[MAXQUERYLEN];
+	int r;
 
 	va_start(ap, sqlstr);
-	sqlen = vasprintf(&sql, sqlstr, ap);
+	int sqlen = vsnprintf(sql, sizeof sql, sqlstr, ap);
 	va_end(ap);
 	r = mysql_real_query(mysql, sql, sqlen);
-	free(sql);
 	return (r ? -1 : mysql_field_count(mysql));
 }
 
@@ -749,18 +748,17 @@ ui_init(void) {
 void
 ui_modify(const char *name, const char *mode, const char *fmtstr, ...) {
 	va_list ap;
-	char *txt;
+	char txt[1024];
 
 	if(!selview->form)
 		return;
 	va_start(ap, fmtstr);
-	vasprintf(&txt, fmtstr, ap);
+	vsnprintf(txt, sizeof txt, fmtstr, ap);
 	va_end(ap);
 	stfl_modify(selview->form,
 		stfl_ipool_towc(ipool, name),
 		stfl_ipool_towc(ipool, mode),
 		stfl_ipool_towc(ipool, txt));
-	free(txt);
 }
 
 void
