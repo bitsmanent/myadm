@@ -457,28 +457,19 @@ mysql_fields(MYSQL_RES *res, Field **fields) {
 
 int
 mysql_file_exec(char *file) {
-	char *buf, *esc;
+	char buf[MAXQUERYLEN+1], esc[MAXQUERYLEN*2+1];
 	int fd, size, r;
 
 	fd = open(file, O_RDONLY);
 	if(fd == -1)
 		return -1;
-	lseek(fd, 0, SEEK_SET);
-	size = lseek(fd, 0, SEEK_END);
-	lseek(fd, 0, SEEK_SET);
-	buf = ecalloc(1, size+1);
-	if(read(fd, buf, size) != size) {
-		free(buf);
+	size = read(fd, buf, sizeof buf);
+	if(size == -1)
 		return -2;
-	}
 	buf[size] = '\0';
-
 	/* We do not want flow control chars to be interpreted. */
-	esc = ecalloc(1, size*2+1);
 	escape(esc, buf, size, '\\', '\'');
 	r = mysql_exec(esc);
-	free(buf);
-	free(esc);
 	if(r == -1)
 		return -3;
 	return 0;
