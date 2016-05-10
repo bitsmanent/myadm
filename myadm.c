@@ -291,15 +291,14 @@ void
 editfile(char *file) {
         pid_t pid;
 	int rc = -1;
-
-	ui_end(); /* endwin() */
+	struct sigaction saold[4];
 
 	/* take off ncurses signal handlers */
 	struct sigaction sa = {.sa_flags = 0, .sa_handler = SIG_DFL};
-	sigaction(SIGINT, &sa, NULL);
-	sigaction(SIGTERM, &sa, NULL);
-	sigaction(SIGTSTP, &sa, NULL);
-	sigaction(SIGWINCH, &sa, NULL);
+	sigaction(SIGINT, &sa, &saold[0]);
+	sigaction(SIGTERM, &sa, &saold[1]);
+	sigaction(SIGTSTP, &sa, &saold[2]);
+	sigaction(SIGWINCH, &sa, &saold[3]);
 
         if((pid = fork()) == 0) {
                 execl("/bin/sh", "sh", "-c", "$EDITOR \"$0\"", file, NULL);
@@ -309,7 +308,13 @@ editfile(char *file) {
 		return;
 	while(!WIFEXITED(rc))
 		waitpid(pid, &rc, 0);
-	ui_init(); /* restore ncurses signal handlers */
+
+	/* restore ncurses signal handlers */
+	sigaction(SIGINT, &saold[0], NULL);
+	sigaction(SIGTERM, &saold[1], NULL);
+	sigaction(SIGTSTP, &saold[2], NULL);
+	sigaction(SIGWINCH, &saold[3], NULL);
+
 	ui_redraw();
 }
 
