@@ -107,7 +107,7 @@ int escape(char *esc, char *s, int sz, char c, char q);
 Item *getitem(int pos);
 int *getmaxlengths(Item *items, Field *fields);
 void itemsel(const Arg *arg);
-char *mksql_update_record(Item *item, Field *fields, char *tbl, char *pk);
+char *mksql_update_record(char sql[MAXQUERYLEN+1], Item *item, Field *fields, char *tbl, char *pk);
 int mysql_file_exec(char *file);
 int mysql_exec(const char *sqlstr, ...);
 int mysql_fields(MYSQL_RES *res, Field **fields);
@@ -323,7 +323,7 @@ editfile(char *file) {
 void
 editrecord(const Arg *arg) {
 	Item *item = getitem(0);
-	char *tbl = selview->choice->cols[0], pk[MYSQLIDLEN+1], *sql;
+	char *tbl = selview->choice->cols[0], pk[MYSQLIDLEN+1], sql[MAXQUERYLEN+1];
 
 	if(!item) {
 		ui_set("status", "No item selected.");
@@ -333,9 +333,8 @@ editrecord(const Arg *arg) {
 		ui_set("status", "Cannot edit records in `%s`, no unique key found.", tbl);
 		return;
 	}
-	sql = mksql_update_record(item, selview->fields, tbl, pk);
+	mksql_update_record(sql, item, selview->fields, tbl, pk);
 	ui_sql_edit_exec(sql);
-	free(sql);
 }
 
 int
@@ -406,40 +405,28 @@ itemsel(const Arg *arg) {
 }
 
 char *
-mksql_update_record(Item *item, Field *fields, char *tbl, char *pk) {
+mksql_update_record(char sql[MAXQUERYLEN+1], Item *item, Field *fields, char *tbl, char *pk) {
 	Field *fld;
-	char *sql, *col = NULL, *sqlfds = NULL, *pkv = NULL;
-	size_t i, len = 0, cnt = 0, size = 0, max = 0;
+	char *pkv = NULL, sqlfds[MAXQUERYLEN+1], col[MAXQUERYLEN*2+1];
+	size_t i, len = 0, cnt = 0;
 
 	for(i = 0, fld = fields; fld; fld = fld->next, ++i) {
 		if(!pkv && !strncmp(pk, fld->name, fld->len))
 			pkv = item->cols[i];
 		len = 10 + fld->len;
-		if(item->lens[i] > max) {
-			max = item->lens[i];
-			if(!(col = realloc(col, max*2+1)))
-				die("cannot realloc %u bytes:", max*2+1);
-		}
 		len += escape(col, item->cols[i], item->lens[i], '\'', 0);
-		if(cnt + len >= size)
-			if(!(sqlfds = realloc(sqlfds, (size += (len <= BUFSIZ ? BUFSIZ : len)))))
-				die("cannot realloc %u bytes:", size);
 		snprintf(&sqlfds[cnt], len, "\n%c`%s` = '%s'",
 			cnt ? ',' : ' ', fld->name, col);
 		cnt += len - 1;
 	}
-	size = 1 + 28 + cnt + strlen(pk) + strlen(pkv) + strlen(tbl);
-	sql = ecalloc(1, size);
-	snprintf(sql, size, "UPDATE `%s` SET%s\nWHERE `%s` = '%s'", tbl, sqlfds, pk, pkv);
-	free(col);
-	free(sqlfds);
+	snprintf(sql, MAXQUERYLEN+1, "UPDATE `%s` SET%s\nWHERE `%s` = '%s'", tbl, sqlfds, pk, pkv);
 	return sql;
 }
 
 int
 mysql_exec(const char *sqlstr, ...) {
 	va_list ap;
-	char sql[MAXQUERYLEN];
+	char sql[MAXQUERYLEN+1];
 	int r, sqlen;
 
 	va_start(ap, sqlstr);
