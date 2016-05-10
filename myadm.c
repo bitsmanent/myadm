@@ -434,10 +434,10 @@ int
 mysql_exec(const char *sqlstr, ...) {
 	va_list ap;
 	char sql[MAXQUERYLEN];
-	int r;
+	int r, sqlen;
 
 	va_start(ap, sqlstr);
-	int sqlen = vsnprintf(sql, sizeof sql, sqlstr, ap);
+	sqlen = vsnprintf(sql, sizeof sql, sqlstr, ap);
 	va_end(ap);
 	r = mysql_real_query(mysql, sql, sqlen);
 	return (r ? -1 : mysql_field_count(mysql));
