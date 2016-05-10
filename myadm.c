@@ -107,7 +107,7 @@ int escape(char *esc, char *s, int sz, char c, char q);
 Item *getitem(int pos);
 int *getmaxlengths(Item *items, Field *fields);
 void itemsel(const Arg *arg);
-char *mksql_update_record(char sql[MAXQUERYLEN+1], Item *item, Field *fields, char *tbl, char *pk);
+char *mksql_update_record(char *sql, Item *item, Field *fields, char *tbl, char *pk);
 int mysql_file_exec(char *file);
 int mysql_exec(const char *sqlstr, ...);
 int mysql_fields(MYSQL_RES *res, Field **fields);
@@ -405,7 +405,7 @@ itemsel(const Arg *arg) {
 }
 
 char *
-mksql_update_record(char sql[MAXQUERYLEN+1], Item *item, Field *fields, char *tbl, char *pk) {
+mksql_update_record(char *sql, Item *item, Field *fields, char *tbl, char *pk) {
 	Field *fld;
 	char *pkv = NULL, sqlfds[MAXQUERYLEN+1], col[MAXQUERYLEN*2+1];
 	size_t i, len = 0, cnt = 0;
@@ -463,10 +463,10 @@ mysql_file_exec(char *file) {
 	fd = open(file, O_RDONLY);
 	if(fd == -1)
 		return -1;
-	size = read(fd, buf, sizeof buf);
+	size = read(fd, buf, MAXQUERYLEN);
 	if(size == -1)
 		return -2;
-	buf[size] = '\0';
+	buf[size+1] = '\0';
 	/* We do not want flow control chars to be interpreted. */
 	escape(esc, buf, size, '\\', '\'');
 	r = mysql_exec(esc);
