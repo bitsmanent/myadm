@@ -835,7 +835,7 @@ viewdb_show(void) {
 	mysql_fillview(res, 0);
 	mysql_free_result(res);
 	ui_listview(selview->items, NULL);
-	ui_set("title", "Tables in `%s`", selview->choice->cols[0]);
+	ui_set("title", "Tables in `%s`@%s", selview->choice->cols[0], dbhost);
 	ui_set("info", "%d table(s)", selview->nitems);
 }
 
@@ -889,7 +889,8 @@ viewtable_show(void) {
 	mysql_fillview(res, 1);
 	mysql_free_result(res);
 	ui_listview(selview->items, selview->fields);
-	ui_set("title", "Records in `%s`", choice->cols[0]);
+	ui_set("title", "Records in `%s`.`%s`@%s",
+		selview->next->choice->cols[0], choice->cols[0],dbhost);
 	ui_set("info", "%d record(s)", selview->nitems);
 }
 
