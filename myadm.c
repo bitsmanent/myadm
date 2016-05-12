@@ -46,6 +46,10 @@ typedef union {
 	const void *v;
 } Arg;
 
+typedef struct {
+	void (*cmd)(void);
+} Action;
+
 typedef struct Item Item;
 struct Item {
 	char **cols;
@@ -120,6 +124,7 @@ void reload(const Arg *arg);
 void run(void);
 void setview(const char *name, void (*func)(void));
 void setup(void);
+void startup(void);
 void ui_end(void);
 struct stfl_form *ui_getform(wchar_t *code);
 void ui_init(void);
@@ -135,6 +140,7 @@ void ui_sql_edit_exec(char *sql);
 void usage(void);
 void viewdb(const Arg *arg);
 void viewdb_show(void);
+void viewdblist(void);
 void viewdblist_show(void);
 void viewprev(const Arg *arg);
 void viewtable(const Arg *arg);
@@ -598,7 +604,6 @@ ui_sql_edit_exec(char *sql) {
 		return;
 	}
 	close(fd);
-
 	stat(tmpf, &sb);
 	while(1) {
 		editfile(tmpf);
@@ -700,7 +705,12 @@ setup(void) {
 		die("Cannot connect to the database.\n");
 	fldseplen = strlen(FLDSEP);
 	ui_init();
-	setview("databases", viewdblist_show);
+}
+
+void
+startup(void) {
+	for (unsigned int i = 0; i < LENGTH(actions); i++)
+		actions[i].cmd();
 }
 
 void
@@ -830,6 +840,11 @@ viewdb_show(void) {
 }
 
 void
+viewdblist(void) {
+	setview("databases", viewdblist_show);
+}
+
+void
 viewdblist_show(void) {
 	MYSQL_RES *res;
 
@@ -897,6 +912,7 @@ main(int argc, char **argv) {
 	} ARGEND;
 
 	setup();
+	startup();
 	run();
 	cleanup();
 	return 0;

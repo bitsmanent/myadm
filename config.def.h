@@ -7,6 +7,11 @@ static const char *dbhost = "";
 static const char *dbuser = "";
 static const char *dbpass = "";
 
+/* gets executed when myadm is started */
+static Action actions[] = {
+	{ viewdblist },
+};
+
 #if defined CTRL && defined _AIX
   #undef CTRL
 #endif
