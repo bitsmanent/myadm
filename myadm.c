@@ -577,7 +577,7 @@ ui_showitems(Item *items, int *lens) {
 	ui_modify("items", "replace_inner", "vbox"); /* empty items */
 	for(item = selview->items; item; item = item->next)
 		ui_putitem(item, lens);
-	ui_set("pos", 0);
+	ui_set("pos", "0");
 }
 
 void
