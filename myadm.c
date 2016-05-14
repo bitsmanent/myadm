@@ -431,7 +431,7 @@ mksql_alter_table(char *sql, char *tbl) {
 	MYSQL_RES *res;
 	Item *items, *item;
 	char sqlfds[MAXQUERYLEN+1];
-	int size = MAXQUERYLEN+1, len = 0, r;
+	int size = MAXQUERYLEN, len = 0, r;
 
 	r = mysql_exec("describe `%s`", tbl);
 	if(r == -1 || !(res = mysql_store_result(mysql))) {
@@ -443,7 +443,7 @@ mksql_alter_table(char *sql, char *tbl) {
 	for(item = items; item; item = item->next) {
 		/* XXX missing keys and indexes */
 		/* XXX quote default when needed */
-		len += snprintf(&sqlfds[len], size - len, "\n%cMODIFY %s %s %sNULL%s%s%s%s",
+		len += snprintf(&sqlfds[len], size - len + 1, "\n%cMODIFY %s %s %sNULL%s%s%s%s",
 			len ? ',' : ' ', item->cols[0], item->cols[1],
 			(!strcmp(item->cols[2], "NO") ? "NOT " : ""),
 			*item->cols[4] ? " DEFAULT " : "", item->cols[4],
@@ -457,13 +457,13 @@ void
 mksql_update_record(char *sql, Item *item, Field *fields, char *tbl, char *pk) {
 	Field *fld;
 	char *pkv = NULL, sqlfds[MAXQUERYLEN+1], col[MAXQUERYLEN*2+1];
-	int size = MAXQUERYLEN+1, len = 0, i;
+	int size = MAXQUERYLEN, len = 0, i;
 
 	for(i = 0, fld = fields; fld; fld = fld->next, ++i) {
 		if(!pkv && !strncmp(pk, fld->name, fld->len))
 			pkv = item->cols[i];
 		escape(col, item->cols[i], item->lens[i], '\'', 0);
-		len += snprintf(&sqlfds[len], size - len, "\n%c`%s` = '%s'",
+		len += snprintf(&sqlfds[len], size - len + 1, "\n%c`%s` = '%s'",
 			len ? ',' : ' ', fld->name, col);
 	}
 	snprintf(sql, MAXQUERYLEN+1, "UPDATE `%s` SET%s\nWHERE `%s` = '%s'",
