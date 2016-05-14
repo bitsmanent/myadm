@@ -55,7 +55,6 @@ struct Item {
 	char **cols;
 	int *lens;
 	int ncols;
-	int id;
 	Item *next;
 };
 
@@ -130,7 +129,7 @@ struct stfl_form *ui_getform(wchar_t *code);
 void ui_init(void);
 void ui_modify(const char *name, const char *mode, const char *fmtstr, ...);
 void ui_listview(Item *items, Field *fields);
-void ui_putitem(Item *item, int *lens);
+void ui_putitem(Item *item, int *lens, int id);
 void ui_redraw(void);
 void ui_refresh(void);
 void ui_set(const char *key, const char *fmtstr, ...);
@@ -513,7 +512,7 @@ int
 mysql_items(MYSQL_RES *res, Item **items) {
 	MYSQL_ROW row;
 	Item *item;
-	int id = 0 , i, nfds, nrows;
+	int i, nfds, nrows;
 	unsigned long *lens;
 
 	nfds = mysql_num_fields(res);
@@ -523,7 +522,6 @@ mysql_items(MYSQL_RES *res, Item **items) {
 		item = ecalloc(1, sizeof(Item));
 		item->lens = ecalloc(nfds, sizeof(int));
 		item->cols = ecalloc(nfds, sizeof(char *));
-		item->id = ++id;
 		lens = mysql_fetch_lengths(res);
 		item->ncols = nfds;
 		for(i = 0; i < nfds; ++i) {
@@ -579,10 +577,11 @@ ui_showfields(Field *fds, int *lens) {
 void
 ui_showitems(Item *items, int *lens) {
 	Item *item;
+	int id = 0;
 
 	ui_modify("items", "replace_inner", "vbox"); /* empty items */
 	for(item = selview->items; item; item = item->next)
-		ui_putitem(item, lens);
+		ui_putitem(item, lens, ++id);
 	ui_set("pos", "0");
 }
 
@@ -756,7 +755,7 @@ ui_modify(const char *name, const char *mode, const char *fmtstr, ...) {
 }
 
 void
-ui_putitem(Item *item, int *lens) {
+ui_putitem(Item *item, int *lens, int id) {
 	char line[COLS + 1];
 	int pad, li = 0, i, j;
 
@@ -780,7 +779,7 @@ ui_putitem(Item *item, int *lens) {
 			line[li++] = ' ';
 	}
 	line[li] = '\0';
-	ui_modify("items", "append", "listitem[%d] text:%s", item->id, QUOTE(line));
+	ui_modify("items", "append", "listitem[%d] text:%s", id, QUOTE(line));
 }
 
 void
