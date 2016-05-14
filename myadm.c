@@ -434,8 +434,10 @@ mksql_alter_table(char *sql, char *tbl) {
 	int size = MAXQUERYLEN+1, len = 0, r;
 
 	r = mysql_exec("describe `%s`", tbl);
-	if(r == -1 || !(res = mysql_store_result(mysql)))
+	if(r == -1 || !(res = mysql_store_result(mysql))) {
+		*sql = '\0';
 		return;
+	}
 	mysql_items(res, &items);
 	mysql_free_result(res);
 	for(item = items; item; item = item->next) {
