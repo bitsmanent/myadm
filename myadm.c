@@ -106,11 +106,13 @@ void die(const char *errstr, ...);
 void *ecalloc(size_t nmemb, size_t size);
 void editfile(char *file);
 void editrecord(const Arg *arg);
+void edittable(const Arg *arg);
 int escape(char *esc, char *s, int sz, char c, char q);
 Item *getitem(int pos);
 int *getmaxlengths(Item *items, Field *fields);
 void itemsel(const Arg *arg);
-char *mksql_update_record(char *sql, Item *item, Field *fields, char *tbl, char *pk);
+void mksql_alter_table(char *sql, char *tbl);
+void mksql_update_record(char *sql, Item *item, Field *fields, char *tbl, char *pk);
 int mysql_file_exec(char *file);
 int mysql_exec(const char *sqlstr, ...);
 int mysql_fields(MYSQL_RES *res, Field **fields);
@@ -342,17 +344,32 @@ editrecord(const Arg *arg) {
 	ui_sql_edit_exec(sql);
 }
 
+void
+edittable(const Arg *arg) {
+	Item *item = getitem(0);
+	char *tbl = item->cols[0], sql[MAXQUERYLEN+1];
+
+	if(!tbl) {
+		ui_set("status", "No table selected.");
+		return;
+	}
+	mksql_alter_table(sql, tbl);
+	ui_sql_edit_exec(sql);
+}
+
 int
 escape(char *esc, char *s, int sz, char c, char q) {
-	int i, ei = 0;
+	int i, ei = 0, en = 0;
 
 	for(i = 0; i < sz; ++i) {
-		if(s[i] == c && (!q || s[i+1] != q))
+		if(s[i] == c && (!q || s[i+1] != q)) {
 			esc[ei++] = '\\';
+			++en;
+		}
 		esc[ei++] = s[i];
 	}
 	esc[ei] = '\0';
-	return ei;
+	return en;
 }
 
 Item *
@@ -409,23 +426,49 @@ itemsel(const Arg *arg) {
 	selview->cur = pos;
 }
 
-char *
+void
+mksql_alter_table(char *sql, char *tbl) {
+	MYSQL_RES *res;
+	Item *items, *item;
+	char sqlfds[MAXQUERYLEN+1];
+	int fi = 0, size = MAXQUERYLEN+1, len, r;
+
+	r = mysql_exec("describe `%s`", tbl);
+	if(r == -1 || !(res = mysql_store_result(mysql)))
+		return;
+	mysql_items(res, &items);
+	mysql_free_result(res);
+	for(item = items; item; item = item->next) {
+		/* XXX key and extra (auto_increment) */
+		len = snprintf(&sqlfds[fi], size, "\n%cMODIFY %s %s %sNULL%s%s%s%s",
+			fi ? ',' : ' ', item->cols[0], item->cols[1],
+			(!strcmp(item->cols[2], "NO") ? "NOT " : ""),
+			*item->cols[4] ? " DEFAULT " : "", item->cols[4],
+			*item->cols[5] ? " " : "", item->cols[5]);
+		size -= len;
+		fi += len;
+	}
+	cleanupitems(&items);
+	snprintf(sql, MAXQUERYLEN+1, "ALTER TABLE `%s`%s", tbl, sqlfds);
+}
+
+void
 mksql_update_record(char *sql, Item *item, Field *fields, char *tbl, char *pk) {
 	Field *fld;
 	char *pkv = NULL, sqlfds[MAXQUERYLEN+1], col[MAXQUERYLEN*2+1];
-	size_t i, len = 0, cnt = 0;
+	int size = MAXQUERYLEN+1, fi = 0, len, i;
 
 	for(i = 0, fld = fields; fld; fld = fld->next, ++i) {
 		if(!pkv && !strncmp(pk, fld->name, fld->len))
 			pkv = item->cols[i];
-		len = 10 + fld->len;
-		len += escape(col, item->cols[i], item->lens[i], '\'', 0);
-		snprintf(&sqlfds[cnt], len, "\n%c`%s` = '%s'",
-			cnt ? ',' : ' ', fld->name, col);
-		cnt += len - 1;
+		escape(col, item->cols[i], item->lens[i], '\'', 0);
+		len = snprintf(&sqlfds[fi], size, "\n%c`%s` = '%s'",
+			fi ? ',' : ' ', fld->name, col);
+		size -= len;
+		fi += len;
 	}
-	snprintf(sql, MAXQUERYLEN+1, "UPDATE `%s` SET%s\nWHERE `%s` = '%s'", tbl, sqlfds, pk, pkv);
-	return sql;
+	snprintf(sql, MAXQUERYLEN+1, "UPDATE `%s` SET%s\nWHERE `%s` = '%s'",
+		tbl, sqlfds, pk, pkv);
 }
 
 int
