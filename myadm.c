@@ -67,7 +67,7 @@ struct Field {
 
 typedef struct {
 	const char *mode;
-	const int modkey;
+	const int code;
 	void (*func)(const Arg *);
 	const Arg arg;
 } Key;
@@ -679,7 +679,7 @@ run(void) {
 			continue;
 		k = NULL;
 		for(i = 0; i < LENGTH(keys); ++i)
-			if(ISCURMODE(keys[i].mode) && keys[i].modkey == code) {
+			if(ISCURMODE(keys[i].mode) && keys[i].code == code) {
 				k = &keys[i];
 				break;
 			}
