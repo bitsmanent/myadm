@@ -457,7 +457,7 @@ void
 mksql_update_record(char *sql, Item *item, Field *fields, char *tbl, char *pk) {
 	Field *fld;
 	char *pkv = NULL, sqlfds[MAXQUERYLEN+1], col[MAXQUERYLEN*2+1];
-	int size = MAXQUERYLEN+1, len, i;
+	int size = MAXQUERYLEN+1, len = 0, i;
 
 	for(i = 0, fld = fields; fld; fld = fld->next, ++i) {
 		if(!pkv && !strncmp(pk, fld->name, fld->len))
@@ -600,16 +600,15 @@ ui_showfields(Field *fds, int *lens) {
 		return;
 	line[0] = '\0';
 	for(fld = fds, i = 0; fld; fld = fld->next, ++i) {
-		if(i) {
+		if(i)
 			for(j = 0; j < fldseplen && li < COLS; ++j)
 				line[li++] = FLDSEP[j];
-			if(li == COLS)
-				break;
-		}
-		for(j = 0; j < fld->len && j < lens[i] && li < COLS; ++j)
+		for(j = 0; li < COLS && j < fld->len && j < lens[i]; ++j)
 			line[li++] = fld->name[j];
-		while(j++ < lens[i] && li < COLS)
+		while(li < COLS && j++ < lens[i])
 			line[li++] = ' ';
+		if(li == COLS)
+			break;
 	}
 	line[li] = '\0';
 	ui_set("subtle", "%s", line);
