@@ -599,7 +599,7 @@ ui_showfields(Field *fds, int *lens) {
 	if(!(fds && lens))
 		return;
 	line[0] = '\0';
-	for(fld = fds, i = 0; fld; fld = fld->next, ++i) {
+	for(fld = fds, i = 0; fld && li < COLS; fld = fld->next, ++i) {
 		if(i)
 			for(j = 0; j < fldseplen && li < COLS; ++j)
 				line[li++] = FLDSEP[j];
@@ -607,8 +607,6 @@ ui_showfields(Field *fds, int *lens) {
 			line[li++] = fld->name[j];
 		while(li < COLS && j++ < lens[i])
 			line[li++] = ' ';
-		if(li == COLS)
-			break;
 	}
 	line[li] = '\0';
 	ui_set("subtle", "%s", line);
@@ -803,13 +801,10 @@ ui_putitem(Item *item, int *lens, int id) {
 	if(!(item && lens))
 		return;
 	line[0] = '\0';
-	for(i = 0; i < item->ncols; ++i) {
-		if(i) {
+	for(i = 0; i < item->ncols && li < COLS; ++i) {
+		if(i)
 			for(j = 0; j < fldseplen && li < COLS; ++j)
 				line[li++] = FLDSEP[j];
-			if(li == COLS)
-				break;
-		}
 		pad = li;
 		for(j = 0; j < item->lens[i] && j < lens[i] && li < COLS; ++j)
 			line[li++] = (isprint(item->cols[i][j])
