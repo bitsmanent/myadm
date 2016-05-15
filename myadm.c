@@ -429,28 +429,32 @@ itemsel(const Arg *arg) {
 void
 mksql_alter_table(char *sql, char *tbl) {
 	MYSQL_RES *res;
-	Item *items, *item;
-	char sqlfds[MAXQUERYLEN+1];
+	MYSQL_ROW row;
+	char *p;
 	int size = MAXQUERYLEN, len = 0, r;
 
-	r = mysql_exec("describe `%s`", tbl);
-	if(r == -1 || !(res = mysql_store_result(mysql))) {
-		*sql = '\0';
+	*sql = '\0';
+	r = mysql_exec("show create table `%s`", tbl);
+	if(r == -1 || !(res = mysql_store_result(mysql)))
 		return;
-	}
-	mysql_items(res, &items);
+	if(!(row = mysql_fetch_row(res)))
+		return;
 	mysql_free_result(res);
-	for(item = items; item; item = item->next) {
-		/* XXX missing keys and indexes */
-		/* XXX quote default when needed */
-		len += snprintf(&sqlfds[len], size - len + 1, "\n%cMODIFY %s %s %sNULL%s%s%s%s",
-			len ? ',' : ' ', item->cols[0], item->cols[1],
-			(!strcmp(item->cols[2], "NO") ? "NOT " : ""),
-			*item->cols[4] ? " DEFAULT " : "", item->cols[4],
-			*item->cols[5] ? " " : "", item->cols[5]);
+	len += snprintf(&sql[len], size - len + 1, "ALTER TABLE `%s`", tbl);
+	for(r = 0, p = &row[1][0]; row[1][r]; ++r) {
+		if(row[1][r] != '\n')
+			continue;
+		while(*p == ' ')
+			++p;
+		if(*p == '`') {
+			row[1][r] = '\0';
+			len += snprintf(&sql[len], size - len + 1, "\nMODIFY %s", p);
+			row[1][r] = '\n';
+		}
+		p = &row[1][r + 1];
 	}
-	cleanupitems(&items);
-	snprintf(sql, MAXQUERYLEN+1, "ALTER TABLE `%s`%s", tbl, sqlfds);
+	if(sql[len - 1] == ',')
+		sql[len - 1] = '\0';
 }
 
 void
