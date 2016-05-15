@@ -920,17 +920,16 @@ viewtable(const Arg *arg) {
 void
 viewtable_show(void) {
 	MYSQL_RES *res;
-	Item *choice = selview->choice;
 	int r;
 
-	r = mysql_exec("select * from `%s`", choice->cols[0]);
+	r = mysql_exec("select * from `%s`", selview->choice->cols[0]);
 	if(r == -1 || !(res = mysql_store_result(mysql)))
-		die("select from `%s`", choice->cols[0]);
+		die("select from `%s`", selview->choice->cols[0]);
 	mysql_fillview(res, 1);
 	mysql_free_result(res);
 	ui_listview(selview->items, selview->fields);
 	ui_set("title", "Records in `%s`.`%s`@%s",
-		selview->next->choice->cols[0], choice->cols[0],dbhost);
+		selview->next->choice->cols[0], selview->choice->cols[0],dbhost);
 	ui_set("info", "%d record(s)", selview->nitems);
 }
 
