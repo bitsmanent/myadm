@@ -519,7 +519,9 @@ mysql_file_exec(char *file) {
 	size = read(fd, buf, MAXQUERYLEN);
 	if(size == -1)
 		return -2;
-	buf[size+1] = '\0';
+	if(!size)
+		return 0;
+	buf[size] = '\0';
 	/* We do not want flow control chars to be interpreted. */
 	size += escape(esc, buf, size, '\\', '\'');
 	r = mysql_exec(esc);
@@ -657,9 +659,10 @@ ui_sql_edit_exec(char *sql) {
 			break;
 		}
 		if(mysql_file_exec(tmpf) < 0) {
-			if(*mysql_error(mysql))
+			if(*mysql_error(mysql)) {
 				if(ui_ask("An error occurred. Continue editing ([y]/n)?", "yn") == 'y')
 					continue;
+			}
 			else
 				ui_set("status", "Something went wrong.");
 			break;
