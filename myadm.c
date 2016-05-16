@@ -703,15 +703,11 @@ quit(const Arg *arg) {
 
 void
 reload(const Arg *arg) {
-	char tmp[8];
-
 	if(!selview->mode.func)
 		return;
 	selview->mode.func();
-	if(selview->cur) {
-		snprintf(tmp, sizeof tmp, "%d", selview->cur);
-		ui_set("pos", tmp);
-	}
+	if(selview->cur)
+		ui_set("pos", "%d", selview->cur);
 }
 
 void
