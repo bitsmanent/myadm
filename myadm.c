@@ -190,7 +190,8 @@ ui_ask(const char *msg, char *opts) {
 	int c;
 	char *o = NULL;
 
-	ui_set("status", msg);
+	if(msg)
+		ui_set("status", msg);
 	ui_refresh();
 	while((c = getch())) {
 		if(c == '\n') {
@@ -353,6 +354,7 @@ edittable(const Arg *arg) {
 		ui_set("status", "No table selected.");
 		return;
 	}
+	/* XXX check alter table permissions */
 	mksql_alter_table(sql, tbl);
 	ui_sql_edit_exec(sql);
 }
@@ -519,11 +521,11 @@ mysql_file_exec(char *file) {
 		return -2;
 	buf[size+1] = '\0';
 	/* We do not want flow control chars to be interpreted. */
-	escape(esc, buf, size, '\\', '\'');
+	size += escape(esc, buf, size, '\\', '\'');
 	r = mysql_exec(esc);
 	if(r == -1)
 		return -3;
-	return 0;
+	return size;
 }
 
 void
@@ -632,7 +634,7 @@ void
 ui_sql_edit_exec(char *sql) {
 	struct stat sb, sa;
 	int fd;
-	char tmpf[] = "/tmp/myadm.XXXXXX", *yn = "yn";
+	char tmpf[] = "/tmp/myadm.XXXXXX";
 
         fd = mkstemp(tmpf);
 	if(fd == -1) {
@@ -655,12 +657,11 @@ ui_sql_edit_exec(char *sql) {
 			break;
 		}
 		if(mysql_file_exec(tmpf) < 0) {
-			if(*mysql_error(mysql)) {
-				if(ui_ask("Wrong SQL code. Continue editing ([y]/n)?", yn) == yn[0])
+			if(*mysql_error(mysql))
+				if(ui_ask("An error occurred. Continue editing ([y]/n)?", "yn") == 'y')
 					continue;
-				break;
-			}
-			ui_set("status", "Something went wrong."); /* XXX improve */
+			else
+				ui_set("status", "Something went wrong.");
 			break;
 		}
 		reload(NULL);
@@ -688,10 +689,8 @@ newaview(const char *name, void (*func)(void)) {
  *  0 never ask */
 void
 quit(const Arg *arg) {
-	char *yn= "yn";
-
 	if(arg->i)
-		if(ui_ask("Do you want to quit ([y]/n)?", yn) != yn[0])
+		if(ui_ask("Do you want to quit ([y]/n)?", "yn") != 'y')
 			return;
 	running = 0;
 }
