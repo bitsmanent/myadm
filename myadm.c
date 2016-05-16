@@ -34,7 +34,7 @@ char *argv0;
 
 #define QUOTE(S)		(stfl_ipool_fromwc(ipool, stfl_quote(stfl_ipool_towc(ipool, S))))
 #define ISCURMODE(N)		!(N && selview && strcmp(selview->mode.name, N))
-#define LENGTH(X)               (sizeof X / sizeof X[0])
+#define LENGTH(X)		(sizeof X / sizeof X[0])
 
 #define MYSQLIDLEN		64
 #define MAXQUERYLEN		4096
@@ -110,7 +110,7 @@ void edittable(const Arg *arg);
 int escape(char *esc, char *s, int sz, char c, char q);
 Item *getitem(int pos);
 int *getmaxlengths(Item *items, Field *fields);
-void itemsel(const Arg *arg);
+void itempos(const Arg *arg);
 void mksql_alter_table(char *sql, char *tbl);
 void mksql_update_record(char *sql, Item *item, Field *fields, char *tbl, char *pk);
 int mysql_file_exec(char *file);
@@ -414,11 +414,13 @@ getmaxlengths(Item *items, Field *fields) {
 }
 
 void
-itemsel(const Arg *arg) {
+itempos(const Arg *arg) {
 	int pos;
 
-	if(!selview)
+	if(!selview || !selview->nitems) {
+		ui_set("info", "No items.");
 		return;
+	}
 	pos = selview->cur + arg->i;
 	if(pos < 0)
 		pos = 0;
@@ -426,6 +428,7 @@ itemsel(const Arg *arg) {
 		pos = selview->nitems - 1;
 	ui_set("pos", "%d", pos);
 	selview->cur = pos;
+	ui_set("info", "%d of %d item(s)", selview->cur+1, selview->nitems);
 }
 
 void
@@ -857,6 +860,7 @@ usage(void) {
 
 void
 viewdb(const Arg *arg) {
+	Arg a = {.i = 0};
 	Item *choice = getitem(0);
 
 	if(!choice) {
@@ -865,6 +869,7 @@ viewdb(const Arg *arg) {
 	}
 	mysql_select_db(mysql, choice->cols[0]);
 	setview("tables", viewdb_show);
+	itempos(&a);
 }
 
 void
@@ -877,12 +882,14 @@ viewdb_show(void) {
 	mysql_free_result(res);
 	ui_listview(selview->items, NULL);
 	ui_set("title", "Tables in `%s`@%s", selview->choice->cols[0], dbhost);
-	ui_set("info", "%d table(s)", selview->nitems);
 }
 
 void
 viewdblist(void) {
+	Arg a = {.i = 0};
+
 	setview("databases", viewdblist_show);
+	itempos(&a);
 }
 
 void
@@ -895,7 +902,6 @@ viewdblist_show(void) {
 	mysql_free_result(res);
 	ui_listview(selview->items, NULL);
 	ui_set("title", "Databases in `%s`", dbhost);
-	ui_set("info", "%d DB(s)", selview->nitems);
 }
 
 void
@@ -911,11 +917,14 @@ viewprev(const Arg *arg) {
 
 void
 viewtable(const Arg *arg) {
+	Arg a = {.i = 0};
+
 	if(!getitem(0)) {
 		ui_set("status", "No table selected.");
 		return;
 	}
 	setview("records", viewtable_show);
+	itempos(&a);
 }
 
 void
@@ -931,7 +940,6 @@ viewtable_show(void) {
 	ui_listview(selview->items, selview->fields);
 	ui_set("title", "Records in `%s`.`%s`@%s",
 		selview->next->choice->cols[0], selview->choice->cols[0],dbhost);
-	ui_set("info", "%d record(s)", selview->nitems);
 }
 
 int

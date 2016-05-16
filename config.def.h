@@ -33,9 +33,9 @@ static Key keys[] = {
         { NULL,          CTRL('c'),    quit,           {.i = 1} },
         { NULL,          'Q',          quit,           {.i = 1} },
         { NULL,          'q',          viewprev,       {0} },
-        { NULL,          'k',          itemsel,        {.i = -1} },
-        { NULL,          KEY_UP,       itemsel,        {.i = -1} },
-        { NULL,          'j',          itemsel,        {.i = +1} },
-        { NULL,          KEY_DOWN,     itemsel,        {.i = +1} },
+        { NULL,          'k',          itempos,        {.i = -1} },
+        { NULL,          KEY_UP,       itempos,        {.i = -1} },
+        { NULL,          'j',          itempos,        {.i = +1} },
+        { NULL,          KEY_DOWN,     itempos,        {.i = +1} },
         { NULL,          'I',          reload,         {0} },
 };
