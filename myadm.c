@@ -103,7 +103,7 @@ void *ecalloc(size_t nmemb, size_t size);
 void editfile(char *file);
 void editrecord(const Arg *arg);
 void edittable(const Arg *arg);
-int escape(char *esc, char *s, int sz, char c, char q);
+int escape(char *esc, char *s, int sz, char c, char skip);
 Item *getitem(int pos);
 int *getmaxlengths(Item *items, Field *fields);
 void itempos(const Arg *arg);
@@ -113,7 +113,7 @@ int mysql_file_exec(char *file);
 int mysql_exec(const char *sqlstr, ...);
 int mysql_fields(MYSQL_RES *res, Field **fields);
 void mysql_fillview(MYSQL_RES *res, int showfds);
-int mysql_pkey(char *key, char *tbl);
+int mysql_pkey(char *key, char *tbl, int sz);
 int mysql_items(MYSQL_RES *res, Item **items);
 void quit(const Arg *arg);
 void reload(const Arg *arg);
@@ -283,7 +283,7 @@ ecalloc(size_t nmemb, size_t size) {
 	void *p;
 
 	if (!(p = calloc(nmemb, size)))
-		die("Cannot allocate memory.");
+		die("Cannot allocate memory.\n");
 	return p;
 }
 
@@ -329,7 +329,7 @@ editrecord(const Arg *arg) {
 		ui_set("status", "No item selected.");
 		return;
 	}
-	if(mysql_pkey(pk, tbl)) {
+	if(mysql_pkey(pk, tbl, sizeof pk)) {
 		ui_set("status", "Cannot edit records in `%s`, no unique key found.", tbl);
 		return;
 	}
@@ -352,31 +352,29 @@ edittable(const Arg *arg) {
 }
 
 int
-escape(char *esc, char *s, int sz, char c, char q) {
-	int i, ei = 0, en = 0;
+escape(char *esc, char *s, int sz, char c, char skip) {
+	int i, ei = 0;
 
 	for(i = 0; i < sz; ++i) {
-		if(s[i] == c && (!q || s[i+1] != q)) {
+		if(s[i] == c && (!skip || s[i+1] != skip))
 			esc[ei++] = '\\';
-			++en;
-		}
 		esc[ei++] = s[i];
 	}
 	esc[ei] = '\0';
-	return en;
+	return ei - sz;
 }
 
 Item *
 getitem(int pos) {
 	Item *item;
-	int n;
+	int i;
 
 	if(!selview)
 		return NULL;
 	if(!pos)
 		pos = selview->cur;
-	for(item = selview->items, n = 0; item; item = item->next, ++n)
-		if(n == pos)
+	for(item = selview->items, i = 0; item; item = item->next, ++i)
+		if(i == pos)
 			break;
 	return item;
 }
@@ -432,9 +430,7 @@ mksql_alter_table(char *sql, char *tbl) {
 
 	*sql = '\0';
 	r = mysql_exec("show create table `%s`", tbl);
-	if(r == -1 || !(res = mysql_store_result(mysql)))
-		return;
-	if(!(row = mysql_fetch_row(res)))
+	if(r == -1 || !(res = mysql_store_result(mysql)) || !(row = mysql_fetch_row(res)))
 		return;
 	mysql_free_result(res);
 	len += snprintf(&sql[len], size - len + 1, "ALTER TABLE `%s`", tbl);
@@ -446,7 +442,6 @@ mksql_alter_table(char *sql, char *tbl) {
 		if(*p == '`') {
 			row[1][r] = '\0';
 			len += snprintf(&sql[len], size - len + 1, "\nMODIFY %s", p);
-			row[1][r] = '\n';
 		}
 		p = &row[1][r + 1];
 	}
@@ -457,7 +452,7 @@ mksql_alter_table(char *sql, char *tbl) {
 void
 mksql_update_record(char *sql, Item *item, Field *fields, char *tbl, char *pk) {
 	Field *fld;
-	char *pkv = NULL, sqlfds[MAXQUERYLEN+1], col[MAXQUERYLEN*2+1];
+	char *pkv = NULL, sqlfds[MAXQUERYLEN+1], col[MAXQUERYLEN];
 	int size = MAXQUERYLEN, len = 0, i;
 
 	for(i = 0, fld = fields; fld; fld = fld->next, ++i) {
@@ -536,7 +531,7 @@ mysql_fillview(MYSQL_RES *res, int showfds) {
 }
 
 int
-mysql_pkey(char *key, char *tbl) {
+mysql_pkey(char *key, char *tbl, int sz) {
 	MYSQL_RES *res;
 	MYSQL_ROW row;
 	int r;
@@ -548,7 +543,7 @@ mysql_pkey(char *key, char *tbl) {
 		mysql_free_result(res);
 		return 2;
 	}
-	sprintf(key, "%s", row[4]);
+	snprintf(key, sz, "%s", row[4]);
 	mysql_free_result(res);
 	return 0;
 }
@@ -570,7 +565,7 @@ mysql_items(MYSQL_RES *res, Item **items) {
 		lens = mysql_fetch_lengths(res);
 		item->ncols = nfds;
 		for(i = 0; i < nfds; ++i) {
-			item->cols[i] = ecalloc(lens[i], sizeof(char) + 1);
+			item->cols[i] = ecalloc(1, lens[i]+1);
 			memcpy(item->cols[i], row[i], lens[i]);
 			item->lens[i] = lens[i];
 		}
@@ -669,10 +664,6 @@ ui_sql_edit_exec(char *sql) {
 	unlink(tmpf);
 }
 
-/* XXX Improved logic:
- * -1 only ask if there are pending changes
- *  1 always ask 
- *  0 never ask */
 void
 quit(const Arg *arg) {
 	if(arg->i)
