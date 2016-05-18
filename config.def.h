@@ -21,7 +21,7 @@ static Action actions[] = {
 #define CTRL_ALT(k) ((k) + (129 - 'a'))
 
 static Key keys[] = {
-	/* mode          key           function        argument */
+	/* view          key           function        argument */
         { "databases",   'q',          quit,           {.i = 0} },
         { "databases",   '\n',         viewdb,         {0} },
         { "databases",   ' ',          viewdb,         {0} },

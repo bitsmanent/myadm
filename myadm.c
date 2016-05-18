@@ -33,7 +33,7 @@
 char *argv0;
 
 #define QUOTE(S)		(stfl_ipool_fromwc(ipool, stfl_quote(stfl_ipool_towc(ipool, S))))
-#define ISCURMODE(N)		!(N && selview && strcmp(selview->mode.name, N))
+#define ISCURVIEW(N)		!(N && selview && strcmp(selview->name, N))
 #define LENGTH(X)		(sizeof X / sizeof X[0])
 
 #define MYSQLIDLEN		64
@@ -66,20 +66,16 @@ struct Field {
 };
 
 typedef struct {
-	const char *mode;
+	const char *view;
 	const int code;
 	void (*func)(const Arg *);
 	const Arg arg;
 } Key;
 
-typedef struct {
-	char name[16];
-	void (*func)(void);
-} Mode;
-
 typedef struct View View;
 struct View {
-	Mode mode;
+	char name[16];
+	void (*show)(void);
 	Item *items;
 	Item *choice;
 	Field *fields;
@@ -119,7 +115,6 @@ int mysql_fields(MYSQL_RES *res, Field **fields);
 void mysql_fillview(MYSQL_RES *res, int showfds);
 int mysql_pkey(char *key, char *tbl);
 int mysql_items(MYSQL_RES *res, Item **items);
-View *newaview(const char *name, void (*func)(void));
 void quit(const Arg *arg);
 void reload(const Arg *arg);
 void run(void);
@@ -674,18 +669,6 @@ ui_sql_edit_exec(char *sql) {
 	unlink(tmpf);
 }
 
-View *
-newaview(const char *name, void (*func)(void)) {
-	View *v;
-
-	v = ecalloc(1, sizeof(View));
-	v->choice = getitem(0);
-	strncpy(v->mode.name, name, sizeof v->mode.name);
-	v->mode.func = func;
-	attach(v);
-	return v;
-}
-
 /* XXX Improved logic:
  * -1 only ask if there are pending changes
  *  1 always ask 
@@ -700,9 +683,9 @@ quit(const Arg *arg) {
 
 void
 reload(const Arg *arg) {
-	if(!selview->mode.func)
+	if(!selview->show)
 		return;
-	selview->mode.func();
+	selview->show();
 	if(selview->cur)
 		ui_set("pos", "%d", selview->cur);
 }
@@ -720,7 +703,7 @@ run(void) {
 			continue;
 		k = NULL;
 		for(i = 0; i < LENGTH(keys); ++i)
-			if(ISCURMODE(keys[i].mode) && keys[i].code == code) {
+			if(ISCURVIEW(keys[i].view) && keys[i].code == code) {
 				k = &keys[i];
 				break;
 			}
@@ -732,9 +715,16 @@ run(void) {
 }
 
 void
-setview(const char *name, void (*func)(void)) {
-	selview = newaview(name, func);
-	func();
+setview(const char *name, void (*show)(void)) {
+	View *v;
+
+	v = ecalloc(1, sizeof(View));
+	v->choice = getitem(0);
+	strncpy(v->name, name, sizeof v->name);
+	v->show = show;
+	attach(v);
+	selview = v;
+	show();
 }
 
 void
