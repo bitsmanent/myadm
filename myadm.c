@@ -193,16 +193,13 @@ ui_ask(const char *msg, char *opts) {
 	if(msg)
 		ui_set("status", msg);
 	ui_refresh();
-	while((c = getch())) {
-		if(c == '\n') {
+	while(!(o && *o) && (c = getch())) {
+		if(c == '\n')
 			o = &opts[0];
-			break;
-		}
-		for(o = opts; *o; ++o)
-			if(c == *o)
-				break;
-		if(*o)
-			break;
+		else
+			for(o = opts; *o; ++o)
+				if(c == *o)
+					break;
 	}
 	ui_set("status", "");
 	return *o;
