@@ -108,7 +108,7 @@ Item *getitem(int pos);
 int *getmaxlengths(Item *items, Field *fields);
 void itempos(const Arg *arg);
 void mksql_alter_table(char *sql, char *tbl);
-void mksql_update_record(char *sql, Item *item, Field *fields, char *tbl, char *pk);
+void mksql_update(char *sql, Item *item, Field *fields, char *tbl, char *pk);
 int mysql_file_exec(char *file);
 int mysql_exec(const char *sqlstr, ...);
 int mysql_fields(MYSQL_RES *res, Field **fields);
@@ -333,21 +333,21 @@ editrecord(const Arg *arg) {
 		ui_set("status", "Cannot edit records in `%s`, no unique key found.", tbl);
 		return;
 	}
-	mksql_update_record(sql, item, selview->fields, tbl, pk);
+	mksql_update(sql, item, selview->fields, tbl, pk);
 	ui_sql_edit_exec(sql);
 }
 
 void
 edittable(const Arg *arg) {
 	Item *item = getitem(0);
-	char *tbl = item->cols[0], sql[MAXQUERYLEN+1];
+	char sql[MAXQUERYLEN+1];
 
-	if(!tbl) {
+	if(!item->cols[0]) {
 		ui_set("status", "No table selected.");
 		return;
 	}
 	/* XXX check alter table permissions */
-	mksql_alter_table(sql, tbl);
+	mksql_alter_table(sql, item->cols[0]);
 	ui_sql_edit_exec(sql);
 }
 
@@ -450,7 +450,7 @@ mksql_alter_table(char *sql, char *tbl) {
 }
 
 void
-mksql_update_record(char *sql, Item *item, Field *fields, char *tbl, char *pk) {
+mksql_update(char *sql, Item *item, Field *fields, char *tbl, char *pk) {
 	Field *fld;
 	char *pkv = NULL, sqlfds[MAXQUERYLEN+1], col[MAXQUERYLEN];
 	int size = MAXQUERYLEN, len = 0, i;
