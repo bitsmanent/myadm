@@ -929,7 +929,7 @@ main(int argc, char **argv) {
 		dbpass = EARGF(usage());
 		break;
 	case 'v':
-		die("%s " VERSION " (c) 2016 Claudio Alessi\n", argv0);
+		die("%s " VERSION " (c) 2017 Claudio Alessi\n", argv0);
 	default:
 		usage();
 	} ARGEND;
