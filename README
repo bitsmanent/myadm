@@ -2,7 +2,12 @@ myadm - mysql admin
 ===================
 myadm is a simple, small, and fast MySQL TUI.
 
-*Design stage; no help welcomed yet.*
+
+Status
+------
+Many code cleanups and a bit of refactoring is needed but the design stage has
+been completed, now I have a working (and usable) version of myadm. Tests and
+contributions are welcomed.
 
 
 Requirements
