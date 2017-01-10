@@ -127,7 +127,6 @@ void ui_init(void);
 void ui_modify(const char *name, const char *mode, const char *fmtstr, ...);
 void ui_listview(Item *items, Field *fields);
 void ui_putitem(Item *item, int *lens, int id);
-void ui_redraw(void);
 void ui_refresh(void);
 void ui_set(const char *key, const char *fmtstr, ...);
 void ui_showfields(Field *fds, int *lens);
@@ -799,12 +798,6 @@ ui_putitem(Item *item, int *lens, int id) {
 	}
 	line[li] = '\0';
 	ui_modify("items", "append", "listitem[%d] text:%s", id, QUOTE(line));
-}
-
-void
-ui_redraw(void) {
-	if(selview && selview->form)
-		stfl_redraw(selview->form);
 }
 
 void
