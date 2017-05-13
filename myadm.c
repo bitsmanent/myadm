@@ -108,12 +108,12 @@ Item *getitem(int pos);
 int *getmaxlengths(Item *items, Field *fields);
 void itempos(const Arg *arg);
 void mksql_alter_table(char *sql, char *tbl);
-void mksql_update(char *sql, Item *item, Field *fields, char *tbl, char *pk);
+void mksql_update(char *sql, Item *item, Field *fields, char *tbl, char *uk);
 int mysql_file_exec(char *file);
 int mysql_exec(const char *sqlstr, ...);
 int mysql_fields(MYSQL_RES *res, Field **fields);
 void mysql_fillview(MYSQL_RES *res, int showfds);
-int mysql_pkey(char *key, char *tbl, int sz);
+int mysql_ukey(char *key, char *tbl, int sz);
 int mysql_items(MYSQL_RES *res, Item **items);
 void quit(const Arg *arg);
 void reload(const Arg *arg);
@@ -140,6 +140,14 @@ void viewdblist_show(void);
 void viewprev(const Arg *arg);
 void viewtable(const Arg *arg);
 void viewtable_show(void);
+
+#if defined CTRL && defined _AIX
+  #undef CTRL
+#endif
+#ifndef CTRL
+  #define CTRL(k)   ((k) & 0x1F)
+#endif
+#define CTRL_ALT(k) ((k) + (129 - 'a'))
 
 #include "config.h"
 
@@ -184,8 +192,7 @@ ui_ask(const char *msg, char *opts) {
 	int c;
 	char *o = NULL;
 
-	if(msg)
-		ui_set("status", msg);
+	ui_set("status", msg);
 	ui_refresh();
 	while(!(o && *o) && (c = getch())) {
 		if(c == '\n')
@@ -237,8 +244,8 @@ cleanupitems(Item **items) {
 		detachitem(i, items);
 		while(--i->ncols >= 0)
 			free(i->cols[i->ncols]);
-		free(i->lens);
 		free(i->cols);
+		free(i->lens);
 		free(i);
 	}
 }
@@ -322,17 +329,17 @@ editfile(char *file) {
 void
 editrecord(const Arg *arg) {
 	Item *item = getitem(0);
-	char *tbl = selview->choice->cols[0], pk[MYSQLIDLEN+1], sql[MAXQUERYLEN+1];
+	char *tbl = selview->choice->cols[0], uk[MYSQLIDLEN+1], sql[MAXQUERYLEN+1];
 
 	if(!item) {
 		ui_set("status", "No item selected.");
 		return;
 	}
-	if(mysql_pkey(pk, tbl, sizeof pk)) {
+	if(mysql_ukey(uk, tbl, sizeof uk)) {
 		ui_set("status", "Cannot edit records in `%s`, no unique key found.", tbl);
 		return;
 	}
-	mksql_update(sql, item, selview->fields, tbl, pk);
+	mksql_update(sql, item, selview->fields, tbl, uk);
 	ui_sql_edit_exec(sql);
 }
 
@@ -449,20 +456,20 @@ mksql_alter_table(char *sql, char *tbl) {
 }
 
 void
-mksql_update(char *sql, Item *item, Field *fields, char *tbl, char *pk) {
+mksql_update(char *sql, Item *item, Field *fields, char *tbl, char *uk) {
 	Field *fld;
-	char *pkv = NULL, sqlfds[MAXQUERYLEN+1], col[MAXQUERYLEN];
+	char *ukv = NULL, sqlfds[MAXQUERYLEN+1], col[MAXQUERYLEN];
 	int size = MAXQUERYLEN, len = 0, i;
 
 	for(i = 0, fld = fields; fld; fld = fld->next, ++i) {
-		if(!pkv && !strncmp(pk, fld->name, fld->len))
-			pkv = item->cols[i];
+		if(!ukv && !strncmp(uk, fld->name, fld->len))
+			ukv = item->cols[i];
 		escape(col, item->cols[i], item->lens[i], '\'', 0);
 		len += snprintf(&sqlfds[len], size - len + 1, "\n%c`%s` = '%s'",
 			len ? ',' : ' ', fld->name, col);
 	}
 	snprintf(sql, MAXQUERYLEN+1, "UPDATE `%s` SET%s\nWHERE `%s` = '%s'",
-		tbl, sqlfds, pk, pkv);
+		tbl, sqlfds, uk, ukv);
 }
 
 int
@@ -530,7 +537,7 @@ mysql_fillview(MYSQL_RES *res, int showfds) {
 }
 
 int
-mysql_pkey(char *key, char *tbl, int sz) {
+mysql_ukey(char *key, char *tbl, int sz) {
 	MYSQL_RES *res;
 	MYSQL_ROW row;
 	int r;
@@ -665,9 +672,8 @@ ui_sql_edit_exec(char *sql) {
 
 void
 quit(const Arg *arg) {
-	if(arg->i)
-		if(ui_ask("Do you want to quit ([y]/n)?", "yn") != 'y')
-			return;
+	if(arg->i && ui_ask("Do you want to quit ([y]/n)?", "yn") != 'y')
+		return;
 	running = 0;
 }
 
@@ -682,24 +688,19 @@ reload(const Arg *arg) {
 
 void
 run(void) {
-	Key *k;
-	int code;
-	int i;
+	int code, i;
 
 	while(running) {
 		ui_refresh();
 		code = getch();
 		if(code < 0)
 			continue;
-		k = NULL;
-		for(i = 0; i < LENGTH(keys); ++i)
+		for(i = 0; i < LENGTH(keys); ++i) {
 			if(ISCURVIEW(keys[i].view) && keys[i].code == code) {
-				k = &keys[i];
+				ui_set("status", "");
+				keys[i].func(&keys[i].arg);
 				break;
 			}
-		if(k) {
-			ui_set("status", "");
-			k->func(&k->arg);
 		}
 	}
 }
@@ -729,7 +730,7 @@ setup(void) {
 
 void
 startup(void) {
-	for (unsigned int i = 0; i < LENGTH(actions); i++)
+	for(unsigned int i = 0; i < LENGTH(actions); i++)
 		actions[i].cmd();
 }
 
@@ -741,10 +742,7 @@ ui_end(void) {
 
 struct stfl_form *
 ui_getform(wchar_t *code) {
-	struct stfl_form *f;
-
-	f = stfl_create(code);
-	return f;
+	return stfl_create(code);
 }
 
 void
@@ -906,7 +904,7 @@ viewtable_show(void) {
 	mysql_free_result(res);
 	ui_listview(selview->items, selview->fields);
 	ui_set("title", "Records in `%s`.`%s`@%s",
-		selview->next->choice->cols[0], selview->choice->cols[0],dbhost);
+		selview->next->choice->cols[0], selview->choice->cols[0], dbhost);
 }
 
 int
@@ -926,7 +924,6 @@ main(int argc, char **argv) {
 	default:
 		usage();
 	} ARGEND;
-
 	setup();
 	startup();
 	run();

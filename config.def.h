@@ -12,14 +12,6 @@ static Action actions[] = {
 	{ viewdblist },
 };
 
-#if defined CTRL && defined _AIX
-  #undef CTRL
-#endif
-#ifndef CTRL
-  #define CTRL(k)   ((k) & 0x1F)
-#endif
-#define CTRL_ALT(k) ((k) + (129 - 'a'))
-
 static Key keys[] = {
 	/* view          key           function        argument */
         { "databases",   'q',          quit,           {.i = 0} },
