@@ -29,5 +29,9 @@ static Key keys[] = {
         { NULL,          KEY_UP,       itempos,        {.i = -1} },
         { NULL,          'j',          itempos,        {.i = +1} },
         { NULL,          KEY_DOWN,     itempos,        {.i = +1} },
+        { NULL,          CTRL('d'),    itempos,        {.i = +20} },
+        { NULL,          KEY_NPAGE,    itempos,        {.i = +20} },
+        { NULL,          CTRL('u'),    itempos,        {.i = -20} },
+        { NULL,          KEY_PPAGE,    itempos,        {.i = -20} },
         { NULL,          'I',          reload,         {0} },
 };
