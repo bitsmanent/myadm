@@ -39,6 +39,9 @@ char *argv0;
 #define MYSQLIDLEN		64
 #define MAXQUERYLEN		4096
 
+/* STFL fragments (generated via stflfrag) */
+#define FRAG_ITEMS		"{vbox[\"main\"]{label .expand:\"0\" text[\"title\"]: @style_normal:\"fg=black,bg=white\"}{label .expand:\"0\" .display[\"showsubtle\"]:\"0\" text[\"subtle\"]: @style_normal:\"fg=blue,bg=black,attr=bold\"}{list[\"items\"] pos[\"pos\"]:\"0\" @style_focus:\"fg=white,bg=blue\" @style_normal:\"fg=white,bg=black\"}{label text[\"info\"]: .expand:\"0\" @style_normal:\"fg=black,bg=white\"}{label text[\"status\"]: .expand:\"0\"}}"
+
 typedef union {
 	int i;
 	unsigned int ui;
@@ -585,7 +588,7 @@ ui_listview(Item *items, Field *fields) {
 	int *lens;
 
 	if(!selview->form)
-		selview->form = ui_getform(L"<items.stfl>");
+		selview->form = ui_getform((wchar_t *)stfl_ipool_towc(ipool, FRAG_ITEMS));
 	lens = getmaxlengths(items, fields);
 	if(fields)
 		ui_showfields(fields, lens);
