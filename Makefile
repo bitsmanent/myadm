@@ -19,11 +19,15 @@ options:
 	@echo CC $<
 	@${CC} -c ${CFLAGS} $<
 
-${OBJ}: config.h config.mk
+${OBJ}: config.h config.mk stflfrag fragments.h
 
 config.h:
 	@echo creating $@ from config.def.h
 	@cp config.def.h $@
+
+fragments.h:
+	@echo creating $@
+	@echo \#define FRAG_ITEMS L\"`./stflfrag items.stfl |sed 's/"/\\\"/g'`\" > $@
 
 ${APPNAME}: ${OBJ}
 	@echo CC -o $@
@@ -32,6 +36,7 @@ ${APPNAME}: ${OBJ}
 clean:
 	@echo cleaning
 	@rm -f ${APPNAME} ${OBJ} ${APPNAME}-${VERSION}.tar.gz
+	@rm -f stflfrag stflfrag.o fragments.h
 
 dist: clean
 	@echo creating dist tarball
@@ -52,10 +57,14 @@ install: all
 	@sed "s/VERSION/${VERSION}/g" < ${APPNAME}.1 > ${DESTDIR}${MANPREFIX}/man1/${APPNAME}.1
 	@chmod 644 ${DESTDIR}${MANPREFIX}/man1/${APPNAME}.1
 
+stflfrag:
+	@echo CC -o $@
+	@${CC} -o $@ $@.c ${LDFLAGS}
+
 uninstall:
 	@echo removing executable file from ${DESTDIR}${PREFIX}/bin
 	@rm -f ${DESTDIR}${PREFIX}/bin/${APPNAME}
 	@echo removing manual page from ${DESTDIR}${MANPREFIX}/man1
 	@rm -f ${DESTDIR}${MANPREFIX}/man1/${APPNAME}.1
 
-.PHONY: all options clean dist install uninstall
+.PHONY: all stflfrag options clean dist install uninstall
