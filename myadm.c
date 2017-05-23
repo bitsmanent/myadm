@@ -42,7 +42,6 @@ char *argv0;
 #define MYSQLIDLEN		64
 #define MAXQUERYLEN		4096
 
-
 typedef union {
 	int i;
 	unsigned int ui;
